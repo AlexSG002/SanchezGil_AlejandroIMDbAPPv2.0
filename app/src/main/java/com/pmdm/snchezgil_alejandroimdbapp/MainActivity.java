@@ -15,6 +15,8 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.facebook.AccessToken;
+import com.facebook.Profile;
 import com.google.android.gms.auth.api.signin.GoogleSignIn;
 import com.google.android.gms.auth.api.signin.GoogleSignInClient;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
@@ -54,9 +56,16 @@ public class MainActivity extends AppCompatActivity {
     private Handler mainHandler;
     private FirebaseAuth mAuth;
 
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        AccessToken accessToken = AccessToken.getCurrentAccessToken();
+        boolean isLoggedIn = accessToken != null && !accessToken.isExpired();
+        //Profile p = Profile.getCurrentProfile();
+        //p.getFirstName();
+        //p.getLastName();
+        //p.getProfilePictureUri(300,300);
         //Obtenemos de nuevo la instancia de Firebase.
         mAuth = FirebaseAuth.getInstance();
         //Obtenemos de nuevo el usuario.
