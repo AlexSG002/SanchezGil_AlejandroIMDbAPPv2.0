@@ -1,6 +1,5 @@
 package com.pmdm.snchezgil_alejandroimdbapp;
 
-import static android.content.ContentValues.TAG;
 
 import android.content.Intent;
 import android.os.Bundle;
@@ -42,6 +41,7 @@ public class LoginActivity extends AppCompatActivity {
     private FirebaseAuth mAuth;
     private GoogleSignInClient gClient;
     private CallbackManager callbackManager;
+    private String TAG = "LOGIN ACTIVITY";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -167,6 +167,7 @@ public class LoginActivity extends AppCompatActivity {
                             // Sign in success, update UI with the signed-in user's information
                             Log.d(TAG, "signInWithCredential:success");
                             FirebaseUser user = mAuth.getCurrentUser();
+                            irAMain();
 
                         } else {
                             // If sign in fails, display a message to the user.

@@ -8,6 +8,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.view.Menu;
 import android.view.View;
 import android.widget.Button;
@@ -16,7 +17,10 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.facebook.AccessToken;
+import com.facebook.GraphRequest;
+import com.facebook.GraphResponse;
 import com.facebook.Profile;
+import com.facebook.login.LoginManager;
 import com.google.android.gms.auth.api.signin.GoogleSignIn;
 import com.google.android.gms.auth.api.signin.GoogleSignInClient;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
@@ -25,6 +29,7 @@ import com.google.android.gms.tasks.Task;
 import com.google.android.material.navigation.NavigationView;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.gson.JsonObject;
 import com.pmdm.snchezgil_alejandroimdbapp.databinding.ActivityMainBinding;
 
 import androidx.annotation.NonNull;
@@ -34,6 +39,9 @@ import androidx.navigation.NavController;
 import androidx.navigation.Navigation;
 import androidx.navigation.ui.AppBarConfiguration;
 import androidx.navigation.ui.NavigationUI;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -101,6 +109,7 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View view) {
                 //Cerramos sesión en firebase y en el cliente de google.
                 mAuth.signOut();
+                LoginManager.getInstance().logOut();
                 gClient.signOut().addOnCompleteListener(new OnCompleteListener<Void>() {
                     @Override
                     public void onComplete(@NonNull Task<Void> task) {
@@ -109,6 +118,33 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
         });
+        if(usuario!=null && accessToken!=null) {
+            GraphRequest request = GraphRequest.newGraphPathRequest(accessToken,
+                    "/me/picture",
+                    new GraphRequest.Callback() {
+                        @Override
+                        public void onCompleted(@NonNull GraphResponse graphResponse) {
+                            try {
+                                JSONObject data = graphResponse.getJSONObject();
+                                if (data != null) {
+                                    JSONObject pictureData = data.getJSONObject("data");
+                                    String imageUrl = pictureData.getString("url");
+
+                                    cargarImagen(imageUrl, imagen);
+                                }
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    });
+
+            Bundle parameters = new Bundle();
+            parameters.putBoolean("redirect", false);
+            parameters.putInt("height", 300);
+            parameters.putInt("width", 300);
+            request.setParameters(parameters);
+            request.executeAsync();
+        }
         //Obtenemos los detalles del header para modificar el nombre, email e imagen.
         nombre = headerView.findViewById(R.id.nombre);
         email = headerView.findViewById(R.id.email);
@@ -130,6 +166,11 @@ public class MainActivity extends AppCompatActivity {
             volverALogin();
         }
     }
+
+    private void cargarImagen(String url, ImageView imageView) {
+        executorService.execute(new DescargarImagen(url, imageView));
+    }
+
     //Método para volver al login, finaliza la activity y empieza una nueva de LoginActivity.
     private void volverALogin(){
         finish();

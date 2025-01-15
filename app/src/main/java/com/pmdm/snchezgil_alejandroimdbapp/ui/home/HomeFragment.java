@@ -16,6 +16,7 @@ import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.GridLayoutManager;
 
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -46,7 +47,6 @@ public class HomeFragment extends Fragment {
     private ExecutorService executorService;
     private Handler mainHandler;
     //Obtenemos el id de usuario al que se lo pasaremos al MovieAdapter para identificar al usuario al añadir sus favoritos.
-    private String idUsuario = FirebaseAuth.getInstance().getCurrentUser().getUid();
     private static final String BASE_URL = "https://imdb-com.p.rapidapi.com/";
     //private static final String API_KEY = "200ca2873dmsh3c28ce355613a89p1dd78cjsndb8f2f9c0b09";
     //private static final String API_KEY = "ab93ab0e94mshebd8e2eb069c3e5p12c6b7jsn40f5cdaf18f8";
@@ -76,7 +76,15 @@ public class HomeFragment extends Fragment {
 
         GridLayoutManager layoutManager = new GridLayoutManager(getContext(), 2);
         binding.recyclerView.setLayoutManager(layoutManager);
-        cargarTopMovies();
+
+        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+        if (currentUser != null) {
+            String idUsuario = currentUser.getUid();
+            cargarTopMovies(idUsuario);
+        } else {
+            Toast.makeText(getContext(), "Usuario no autenticado.", Toast.LENGTH_SHORT).show();
+        }
+
 
         return root;
     }
@@ -154,7 +162,7 @@ public class HomeFragment extends Fragment {
         });
     }
     //Método para cargar el top de peliculas, en esencia igual que el anterior.
-    private void cargarTopMovies() {
+    private void cargarTopMovies(String idUsuario) {
         executorService.execute(() -> {
             try {
                 String urlString = BASE_URL + ENDPOINT_TOP10;
