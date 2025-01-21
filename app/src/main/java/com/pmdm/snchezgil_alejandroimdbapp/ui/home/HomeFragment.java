@@ -16,6 +16,7 @@ import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.GridLayoutManager;
 
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -46,13 +47,12 @@ public class HomeFragment extends Fragment {
     private ExecutorService executorService;
     private Handler mainHandler;
     //Obtenemos el id de usuario al que se lo pasaremos al MovieAdapter para identificar al usuario al añadir sus favoritos.
-    private String idUsuario = FirebaseAuth.getInstance().getCurrentUser().getUid();
     private static final String BASE_URL = "https://imdb-com.p.rapidapi.com/";
     //private static final String API_KEY = "200ca2873dmsh3c28ce355613a89p1dd78cjsndb8f2f9c0b09";
     //private static final String API_KEY = "ab93ab0e94mshebd8e2eb069c3e5p12c6b7jsn40f5cdaf18f8";
     //private static final String API_KEY = "8387dd50bamsh70639397777c48dp1f8dc5jsn8138e37a8f4f";
-    //private static final String API_KEY = "7b9666c90cmsh018cf98d92659e1p1f7b9ejsn03cf7efd6bab";
-    private static final String API_KEY = "10d6f51c11msh656b9bf6c5f2dafp186d10jsndf3eedfbfec3";
+    private static final String API_KEY = "7b9666c90cmsh018cf98d92659e1p1f7b9ejsn03cf7efd6bab"; //Esta no va, pero no quiero gastar usos de la api de prueba.
+    //private static final String API_KEY = "10d6f51c11msh656b9bf6c5f2dafp186d10jsndf3eedfbfec3";
     private static final String HOST = "imdb-com.p.rapidapi.com";
     private static final String ENDPOINT_TOP10 = "title/get-top-meter?topMeterTitlesType=ALL";
     private static final String ENDPOINT_DESCRIPCION = "title/get-overview?tconst=";
@@ -76,7 +76,15 @@ public class HomeFragment extends Fragment {
 
         GridLayoutManager layoutManager = new GridLayoutManager(getContext(), 2);
         binding.recyclerView.setLayoutManager(layoutManager);
-        cargarTopMovies();
+
+        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+        if (currentUser != null) {
+            String idUsuario = currentUser.getUid();
+            cargarTopMovies(idUsuario);
+        } else {
+            Toast.makeText(getContext(), "Usuario no autenticado.", Toast.LENGTH_SHORT).show();
+        }
+
 
         return root;
     }
@@ -154,7 +162,7 @@ public class HomeFragment extends Fragment {
         });
     }
     //Método para cargar el top de peliculas, en esencia igual que el anterior.
-    private void cargarTopMovies() {
+    private void cargarTopMovies(String idUsuario) {
         executorService.execute(() -> {
             try {
                 String urlString = BASE_URL + ENDPOINT_TOP10;

@@ -16,6 +16,13 @@
     <string name="next">Next</string>
     <string name="previous">Previous</string>
 
+
+    <string name="facebook_app_id">1136105484831668</string>
+    <string name="fb_login_protocol_scheme">fb1136105484831668</string>
+    <string name="facebook_client_token">56789</string>
+
+
+
     <string name="lorem_ipsum">
         Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nam in scelerisque sem. Mauris
         volutpat, dolor id interdum ullamcorper, risus dolor egestas lectus, sit amet mattis purus
