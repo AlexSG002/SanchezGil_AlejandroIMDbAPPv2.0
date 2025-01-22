@@ -193,6 +193,8 @@ public class MainActivity extends AppCompatActivity {
     private class DescargarImagen implements Runnable {
         private final String url;
         private final ImageView imageView;
+        private static final int MAX_WIDTH = 300;
+        private static final int MAX_HEIGHT = 300;
         //Obtenemos la url y el imageView.
         private DescargarImagen(String url, ImageView imageView) {
             this.url = url;
@@ -201,20 +203,47 @@ public class MainActivity extends AppCompatActivity {
         //Método run para ejecutar en el hilo principal
         @Override
         public void run() {
-            //Utilizamos el mismo método que en la aplicación de AsyncTask.
             try {
                 byte[] imagenBytes = descargaImagen(url);
+                //Con este método obtenemos el insample size para decodificar la imágen con el tamaño que queremos como máximo de 300x300.
+                BitmapFactory.Options options = new BitmapFactory.Options();
+                options.inJustDecodeBounds = true;
+                BitmapFactory.decodeByteArray(imagenBytes, 0, imagenBytes.length, options);
 
-                BitmapFactory.decodeByteArray(imagenBytes, 0, imagenBytes.length);
-                Bitmap bitmap = BitmapFactory.decodeByteArray(imagenBytes, 0, imagenBytes.length);
+                options.inSampleSize = calculateInSampleSize(options, MAX_WIDTH, MAX_HEIGHT);
 
-                mainHandler.post(() -> imageView.setImageBitmap(bitmap));
+                options.inJustDecodeBounds = false;
+                Bitmap bitmapEscalado = BitmapFactory.decodeByteArray(imagenBytes, 0, imagenBytes.length, options);
+
+                mainHandler.post(() -> imageView.setImageBitmap(bitmapEscalado));
 
             } catch (IOException e) {
                 mainHandler.post(() -> Toast.makeText(MainActivity.this,
                         "Error al descargar la imagen.",
                         Toast.LENGTH_SHORT).show());
             }
+        }
+
+        // Método para calcular el inSampleSize
+        private int calculateInSampleSize(BitmapFactory.Options options, int reqWidth, int reqHeight) {
+            // Dimensiones originales de la imagen
+            final int altura = options.outHeight;
+            final int anchura = options.outWidth;
+            int inSampleSize = 1;
+
+            if (altura > reqHeight || anchura > reqWidth) {
+                final int mitadAltura = altura / 2;
+                final int mitadAnchura = anchura / 2;
+
+                // Calcular el inSampleSize más grande que sea potencia de 2 y mantenga ambas dimensiones
+                // mayores que las requeridas
+                while ((mitadAltura / inSampleSize) >= reqHeight
+                        && (mitadAnchura / inSampleSize) >= reqWidth) {
+                    inSampleSize *= 2;
+                }
+            }
+
+            return inSampleSize;
         }
         //Método que conecta a la url y obtiene la imagen igual que en la práctica de executor.
         private byte[] descargaImagen(String myurl) throws IOException {
