@@ -154,9 +154,14 @@ public class MainActivity extends AppCompatActivity {
             String nombreCuenta = usuario.getDisplayName();
             String emailCuenta = usuario.getEmail();
             Uri imagenCuenta = usuario.getPhotoUrl();
-            //Establecemos los datos en los textView.
-            nombre.setText(nombreCuenta);
-            email.setText(emailCuenta);
+            if(accessToken!=null){
+                nombre.setText(nombreCuenta);
+                email.setText("Conectado con Facebook");
+            }else {
+                //Establecemos los datos en los textView.
+                nombre.setText(nombreCuenta);
+                email.setText(emailCuenta);
+            }
             //Comprobamos que la imagen no sea nula y utilizamos executor para obtener la imagen del usuario.
             if(imagenCuenta!=null){
                 executorService.execute(new DescargarImagen(imagenCuenta.toString(), imagen));
