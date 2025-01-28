@@ -31,6 +31,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
+import com.google.android.recaptcha.RecaptchaException;
 import com.google.firebase.auth.ActionCodeSettings;
 import com.google.firebase.auth.AuthCredential;
 import com.google.firebase.auth.AuthResult;
@@ -39,6 +40,7 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthUserCollisionException;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.GoogleAuthProvider;
+import com.google.firebase.auth.SignInMethodQueryResult;
 
 import java.util.Arrays;
 import java.util.List;
@@ -59,9 +61,6 @@ public class LoginActivity extends AppCompatActivity {
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_login);
 
-        ActionCodeSettings actionCodeSettings = ActionCodeSettings.newBuilder()
-                .setUrl("")
-                .build();
 
 
         callbackManager = CallbackManager.Factory.create();
@@ -128,6 +127,7 @@ public class LoginActivity extends AppCompatActivity {
                             }
                         });
 
+
         //Declaramos e inicializamos la variable botón.
         Button button = findViewById(R.id.sign_in_button);
         //Le añadimos el OnClickListener.
@@ -171,9 +171,11 @@ public class LoginActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 String mail = "";
+                String password = "";
                 if(editTextEmail.getText().toString().matches("^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$")){
                     if(!String.valueOf(editTextPassword.getText()).isEmpty()){
                         mail = String.valueOf(editTextEmail.getText());
+                        password = String.valueOf(editTextPassword.getText());
                     }else{
                         Toast.makeText(LoginActivity.this, "La clave no puede estar vacía",Toast.LENGTH_SHORT).show();
                     }
@@ -181,7 +183,22 @@ public class LoginActivity extends AppCompatActivity {
                     Toast.makeText(LoginActivity.this, "El email introducido no es correcto",Toast.LENGTH_SHORT).show();
                     return;
                 }
-                mAuth.sendSignInLinkToEmail(mail, actionCodeSettings);
+                mAuth.createUserWithEmailAndPassword(mail, password).addOnCompleteListener(new OnCompleteListener<AuthResult>() {
+                    @Override
+                    public void onComplete(@NonNull Task<AuthResult> task) {
+                        if(task.isSuccessful()){
+                            Toast.makeText(LoginActivity.this, "Registro exitoso", Toast.LENGTH_SHORT).show();
+                            irAMain();
+                        }else if(task.getException() instanceof FirebaseAuthUserCollisionException){
+                            FirebaseAuthUserCollisionException exception = (FirebaseAuthUserCollisionException) task.getException();
+                            String email = exception.getEmail();
+                            Toast.makeText(LoginActivity.this, "Cuenta ya en uso, porfavor inicia sesión con el método seleccionado.", Toast.LENGTH_SHORT).show();
+                        }else{
+                            Toast.makeText(LoginActivity.this, "Registro fallido", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                });
+
             }
         });
 
@@ -189,9 +206,11 @@ public class LoginActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 String mail = "";
+                String password = "";
                 if(editTextEmail.getText().toString().matches("^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$")){
                     if(!String.valueOf(editTextPassword.getText()).isEmpty()){
                         mail = String.valueOf(editTextEmail.getText());
+                        password = String.valueOf(editTextPassword.getText());
                     }else{
                         Toast.makeText(LoginActivity.this, "La clave no puede estar vacía",Toast.LENGTH_SHORT).show();
                     }
@@ -199,11 +218,28 @@ public class LoginActivity extends AppCompatActivity {
                     Toast.makeText(LoginActivity.this, "El email introducido no es correcto",Toast.LENGTH_SHORT).show();
                     return;
                 }
+                mAuth.signInWithEmailAndPassword(mail, password).addOnCompleteListener(new OnCompleteListener<AuthResult>() {
+                    @Override
+                    public void onComplete(@NonNull Task<AuthResult> task) {
+                        if(task.isSuccessful()){
+                            Toast.makeText(LoginActivity.this, "Inicio de sesión exitoso", Toast.LENGTH_SHORT).show();
+                            irAMain();
+                        }else if(task.getException() instanceof FirebaseAuthUserCollisionException){
+                            FirebaseAuthUserCollisionException exception = (FirebaseAuthUserCollisionException) task.getException();
+                            String email = exception.getEmail();
+                            Toast.makeText(LoginActivity.this, "Cuenta ya en uso, porfavor inicia sesión con el método seleccionado (Facebook o Google).", Toast.LENGTH_SHORT).show();
+                        }else{
+                            Toast.makeText(LoginActivity.this, "Inicio de sesión fallido", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                });
 
             }
         });
 
     }
+
+
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
