@@ -8,8 +8,8 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Log;
 import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -19,7 +19,6 @@ import android.widget.Toast;
 import com.facebook.AccessToken;
 import com.facebook.GraphRequest;
 import com.facebook.GraphResponse;
-import com.facebook.Profile;
 import com.facebook.login.LoginManager;
 import com.google.android.gms.auth.api.signin.GoogleSignIn;
 import com.google.android.gms.auth.api.signin.GoogleSignInClient;
@@ -29,7 +28,6 @@ import com.google.android.gms.tasks.Task;
 import com.google.android.material.navigation.NavigationView;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
-import com.google.gson.JsonObject;
 import com.pmdm.snchezgil_alejandroimdbapp.databinding.ActivityMainBinding;
 
 import androidx.annotation.NonNull;
@@ -171,6 +169,26 @@ public class MainActivity extends AppCompatActivity {
             volverALogin();
         }
     }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        int id = item.getItemId();
+        if(id == R.id.action_editUser){
+            irAEditarUsuario();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    private void irAEditarUsuario() {
+        Intent i = new Intent(MainActivity.this, EditUserActivity.class);
+        String nombreCuenta = String.valueOf(nombre.getText());
+        String emailCuenta = String.valueOf(email.getText());
+        i.putExtra("nombre",nombreCuenta);
+        i.putExtra("email", emailCuenta);
+        startActivity(i);
+    }
+
 
     private void cargarImagen(String url, ImageView imageView) {
         executorService.execute(new DescargarImagen(url, imageView));
