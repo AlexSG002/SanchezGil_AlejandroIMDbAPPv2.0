@@ -41,7 +41,10 @@ import com.google.firebase.auth.FirebaseAuthUserCollisionException;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.GoogleAuthProvider;
 import com.google.firebase.auth.SignInMethodQueryResult;
+import com.pmdm.snchezgil_alejandroimdbapp.database.IMDbDatabaseHelper;
+import com.pmdm.snchezgil_alejandroimdbapp.utils.AppLifecycleManager;
 
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.List;
 
@@ -61,6 +64,9 @@ public class LoginActivity extends AppCompatActivity {
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_login);
 
+        AppLifecycleManager manager = new AppLifecycleManager(this);
+        getApplication().registerActivityLifecycleCallbacks(manager);
+        getApplication().registerComponentCallbacks(manager);
 
 
         callbackManager = CallbackManager.Factory.create();
@@ -75,6 +81,11 @@ public class LoginActivity extends AppCompatActivity {
         FirebaseUser usuarioActual = mAuth.getCurrentUser();
         //Comprobamos que el usuario no sea nulo y navegamos al main.
         if (usuarioActual != null){
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+            String formattedDate = sdf.format(System.currentTimeMillis());
+            String loginLog = formattedDate;
+            IMDbDatabaseHelper dbHelper = new IMDbDatabaseHelper(getApplicationContext());
+            dbHelper.actualizarLoginRegistro(usuarioActual.getUid(), loginLog);
             irAMain();
         }
         //Launcher para lanzar la pestaña de selección de cuenta de Google.

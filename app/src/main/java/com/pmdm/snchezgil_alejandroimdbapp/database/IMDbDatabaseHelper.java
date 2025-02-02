@@ -98,4 +98,27 @@ public class IMDbDatabaseHelper extends SQLiteOpenHelper {
         return db.insert(TABLE_FAVORITOS, null, valores);
     }
 
+    public void actualizarLoginRegistro(String idUsuario, String loginRegistro) {
+        if (loginRegistro == null) {
+            loginRegistro = "";
+        }
+        SQLiteDatabase db = this.getWritableDatabase();
+        ContentValues valores = new ContentValues();
+        valores.put("loginRegistro", loginRegistro);
+        db.update(TABLE_USUARIOS, valores, "idUsuario = ?", new String[]{idUsuario});
+        db.close();
+    }
+
+    public void actualizarLogoutRegistro(String idUsuario, String logoutRegistro) {
+        if (logoutRegistro == null) {
+            logoutRegistro = "";
+        }
+        SQLiteDatabase db = this.getWritableDatabase();
+        ContentValues valores = new ContentValues();
+        valores.put("logoutRegistro", logoutRegistro);
+        db.update(TABLE_USUARIOS, valores, "idUsuario = ?", new String[]{idUsuario});
+        db.close();
+    }
+
+
 }
