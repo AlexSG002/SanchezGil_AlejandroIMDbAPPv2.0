@@ -22,7 +22,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.pmdm.snchezgil_alejandroimdbapp.adapter.MovieAdapter;
-import com.pmdm.snchezgil_alejandroimdbapp.database.FavoritesDatabaseHelper;
+import com.pmdm.snchezgil_alejandroimdbapp.database.IMDbDatabaseHelper;
 import com.pmdm.snchezgil_alejandroimdbapp.databinding.FragmentHomeBinding;
 import com.pmdm.snchezgil_alejandroimdbapp.models.Movie;
 
@@ -53,11 +53,12 @@ public class HomeFragment extends Fragment {
     //private static final String API_KEY = "8387dd50bamsh70639397777c48dp1f8dc5jsn8138e37a8f4f";
     private static final String API_KEY = "7b9666c90cmsh018cf98d92659e1p1f7b9ejsn03cf7efd6bab"; //Esta no va, pero no quiero gastar usos de la api de prueba.
     //private static final String API_KEY = "10d6f51c11msh656b9bf6c5f2dafp186d10jsndf3eedfbfec3";
+    //private static final String API_KEY = "3d76c0302dmsh50ef648aa3bd887p155fa9jsn0a10d29a1ced";
     private static final String HOST = "imdb-com.p.rapidapi.com";
-    private static final String ENDPOINT_TOP10 = "title/get-top-meter?topMeterTitlesType=ALL";
+    private static final String ENDPOINT_TOP10 = "title/get-top-meter?topMeterTitlesType=ALL&limit=10";
     private static final String ENDPOINT_DESCRIPCION = "title/get-overview?tconst=";
     private static List<Movie> peliculasCargadas = new ArrayList<>();
-    private FavoritesDatabaseHelper database;
+    private IMDbDatabaseHelper database;
     private boolean favoritos = false;
 
     //Al crearse la vista cargamos las películas.
@@ -68,7 +69,7 @@ public class HomeFragment extends Fragment {
         binding = FragmentHomeBinding.inflate(inflater, container, false);
         View root = binding.getRoot();
 
-        database = new FavoritesDatabaseHelper(getContext());
+        database = new IMDbDatabaseHelper(getContext());
         SQLiteDatabase db = database.getWritableDatabase();
 
         executorService = Executors.newSingleThreadExecutor();

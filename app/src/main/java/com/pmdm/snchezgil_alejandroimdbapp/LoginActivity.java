@@ -1,11 +1,13 @@
 package com.pmdm.snchezgil_alejandroimdbapp;
 
 
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
@@ -29,12 +31,19 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
+import com.google.android.recaptcha.RecaptchaException;
+import com.google.firebase.auth.ActionCodeSettings;
 import com.google.firebase.auth.AuthCredential;
 import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FacebookAuthProvider;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseAuthUserCollisionException;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.GoogleAuthProvider;
+import com.google.firebase.auth.SignInMethodQueryResult;
+
+import java.util.Arrays;
+import java.util.List;
 
 public class LoginActivity extends AppCompatActivity {
     //Declaramos las variables de Firebase y GoogleSignInClient.
@@ -42,12 +51,17 @@ public class LoginActivity extends AppCompatActivity {
     private GoogleSignInClient gClient;
     private CallbackManager callbackManager;
     private String TAG = "LOGIN ACTIVITY";
+    private AuthCredential facebookCredential;
+    private ActivityResultLauncher<Intent> activityResultLauncherGoogleSignIn;
+    private ActivityResultLauncher<Intent> activityResultLauncherGoogleLinking;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_login);
+
+
 
         callbackManager = CallbackManager.Factory.create();
         
@@ -64,7 +78,7 @@ public class LoginActivity extends AppCompatActivity {
             irAMain();
         }
         //Launcher para lanzar la pestaña de selección de cuenta de Google.
-        ActivityResultLauncher<Intent> activityResultLauncher = registerForActivityResult(
+        activityResultLauncherGoogleSignIn = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 new ActivityResultCallback<ActivityResult>() {
                     @Override
@@ -83,6 +97,37 @@ public class LoginActivity extends AppCompatActivity {
                         }
                     }
                 });
+
+        GoogleSignInOptions gLinkOptions = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestIdToken(getString(R.string.default_web_client_id))
+                .requestEmail()
+                .build();
+        GoogleSignInClient googleLinkClient = GoogleSignIn.getClient(this, gLinkOptions);
+
+        activityResultLauncherGoogleLinking = registerForActivityResult
+                (new ActivityResultContracts.StartActivityForResult(),
+                        new ActivityResultCallback<ActivityResult>() {
+                            @Override
+                            public void onActivityResult(ActivityResult result) {
+                                if(result.getResultCode() == RESULT_OK && result.getData() != null){
+                                    Intent data = result.getData();
+                                    Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
+                                    try{
+                                        GoogleSignInAccount account = task.getResult(ApiException.class);
+                                        if (account != null){
+                                            vincularGoogleConFacebook(account);
+                                        }
+                                    } catch (ApiException e){
+                                        Log.e(TAG, "Google sign in failed for linking", e);
+                                        Toast.makeText(LoginActivity.this, "Algo ha ido mal durante el inicio de sesión con Google para vincular.", Toast.LENGTH_SHORT).show();
+                                    }
+                                } else {
+                                    Toast.makeText(LoginActivity.this, "Inicio de sesión con Google cancelado.", Toast.LENGTH_SHORT).show();
+                                }
+                            }
+                        });
+
+
         //Declaramos e inicializamos la variable botón.
         Button button = findViewById(R.id.sign_in_button);
         //Le añadimos el OnClickListener.
@@ -92,7 +137,7 @@ public class LoginActivity extends AppCompatActivity {
                 //Declaramos e incializamos el intent a la pestaña de selección de cuentas de google de gClient.
                 Intent signInIntent = gClient.getSignInIntent();
                 //Utilizando el launcher lanzamos el intent de inicio de sesión.
-                activityResultLauncher.launch(signInIntent);
+                activityResultLauncherGoogleSignIn.launch(signInIntent);
             }
         });
 
@@ -116,12 +161,91 @@ public class LoginActivity extends AppCompatActivity {
             }
         });
 
+        EditText editTextEmail = findViewById(R.id.editTextEmail);
+        EditText editTextPassword = findViewById(R.id.editTextTextPassword);
+
+        Button buttonRegsitroEmail = findViewById(R.id.buttonRegistro);
+        Button buttonInicioEmail = findViewById(R.id.buttonLogIn);
+
+        buttonRegsitroEmail.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                String mail = "";
+                String password = "";
+                if(editTextEmail.getText().toString().matches("^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$")){
+                    if(!String.valueOf(editTextPassword.getText()).isEmpty()){
+                        mail = String.valueOf(editTextEmail.getText());
+                        password = String.valueOf(editTextPassword.getText());
+                    }else{
+                        Toast.makeText(LoginActivity.this, "La clave no puede estar vacía",Toast.LENGTH_SHORT).show();
+                    }
+                }else{
+                    Toast.makeText(LoginActivity.this, "El email introducido no es correcto",Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                mAuth.createUserWithEmailAndPassword(mail, password).addOnCompleteListener(new OnCompleteListener<AuthResult>() {
+                    @Override
+                    public void onComplete(@NonNull Task<AuthResult> task) {
+                        if(task.isSuccessful()){
+                            Toast.makeText(LoginActivity.this, "Registro exitoso", Toast.LENGTH_SHORT).show();
+                            irAMain();
+                        }else if(task.getException() instanceof FirebaseAuthUserCollisionException){
+                            FirebaseAuthUserCollisionException exception = (FirebaseAuthUserCollisionException) task.getException();
+                            String email = exception.getEmail();
+                            Toast.makeText(LoginActivity.this, "Cuenta ya en uso, porfavor inicia sesión con el método seleccionado.", Toast.LENGTH_SHORT).show();
+                        }else{
+                            Toast.makeText(LoginActivity.this, "Registro fallido", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                });
+
+            }
+        });
+
+        buttonInicioEmail.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                String mail = "";
+                String password = "";
+                if(editTextEmail.getText().toString().matches("^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$")){
+                    if(!String.valueOf(editTextPassword.getText()).isEmpty()){
+                        mail = String.valueOf(editTextEmail.getText());
+                        password = String.valueOf(editTextPassword.getText());
+                    }else{
+                        Toast.makeText(LoginActivity.this, "La clave no puede estar vacía",Toast.LENGTH_SHORT).show();
+                    }
+                }else{
+                    Toast.makeText(LoginActivity.this, "El email introducido no es correcto",Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                mAuth.signInWithEmailAndPassword(mail, password).addOnCompleteListener(new OnCompleteListener<AuthResult>() {
+                    @Override
+                    public void onComplete(@NonNull Task<AuthResult> task) {
+                        if(task.isSuccessful()){
+                            Toast.makeText(LoginActivity.this, "Inicio de sesión exitoso", Toast.LENGTH_SHORT).show();
+                            irAMain();
+                        }else if(task.getException() instanceof FirebaseAuthUserCollisionException){
+                            FirebaseAuthUserCollisionException exception = (FirebaseAuthUserCollisionException) task.getException();
+                            String email = exception.getEmail();
+                            Toast.makeText(LoginActivity.this, "Cuenta ya en uso, porfavor inicia sesión con el método seleccionado (Facebook o Google).", Toast.LENGTH_SHORT).show();
+                        }else{
+                            Toast.makeText(LoginActivity.this, "Inicio de sesión fallido", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                });
+
+            }
+        });
+
     }
+
+
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         callbackManager.onActivityResult(requestCode, resultCode, data);
         super.onActivityResult(requestCode, resultCode, data);
+
     }
 
     //Método para obtener las credenciales de Google e iniciar sesión en Firebase.
@@ -159,25 +283,75 @@ public class LoginActivity extends AppCompatActivity {
         Log.d(TAG, "handleFacebookAccessToken:" + token);
 
         AuthCredential credential = FacebookAuthProvider.getCredential(token.getToken());
-        mAuth.signInWithCredential(credential)
-                .addOnCompleteListener(this, new OnCompleteListener<AuthResult>() {
-                    @Override
-                    public void onComplete(@NonNull Task<AuthResult> task) {
+        FirebaseUser user = mAuth.getCurrentUser();
+            // Usuario no autenticado, intenta iniciar sesión con Facebook
+            mAuth.signInWithCredential(credential)
+                    .addOnCompleteListener(this, task -> {
                         if (task.isSuccessful()) {
-                            // Sign in success, update UI with the signed-in user's information
+                            // Inicio de sesión exitoso
                             Log.d(TAG, "signInWithCredential:success");
-                            FirebaseUser user = mAuth.getCurrentUser();
+                            FirebaseUser newUser = mAuth.getCurrentUser();
+                            Toast.makeText(LoginActivity.this, "Autenticación con Facebook exitosa.", Toast.LENGTH_SHORT).show();
                             irAMain();
-
                         } else {
-                            // If sign in fails, display a message to the user.
-                            Log.w(TAG, "signInWithCredential:failure", task.getException());
-                            Toast.makeText(LoginActivity.this, "Authentication failed.",
-                                    Toast.LENGTH_SHORT).show();
+                            if (task.getException() instanceof FirebaseAuthUserCollisionException) {
+                                // Manejar la colisión de cuentas
+                                FirebaseAuthUserCollisionException exception = (FirebaseAuthUserCollisionException) task.getException();
+                                String email = exception.getEmail();
+                                Log.w(TAG, "signInWithCredential:failure", task.getException());
 
+                                // Mostrar un diálogo al usuario para iniciar sesión con Google y luego vincular
+                                mostrarDialogoVinculacion(email, credential);
+                            } else {
+                                // Otro tipo de error
+                                Log.w(TAG, "signInWithCredential:failure", task.getException());
+                                Toast.makeText(LoginActivity.this, "Autenticación con Facebook fallida.", Toast.LENGTH_SHORT).show();
+                            }
                         }
+                    });
+    }
 
-                        // ...
+    private void mostrarDialogoVinculacion(String email, AuthCredential credential){
+        new AlertDialog.Builder(this)
+                .setTitle("Cuenta ya existente")
+                .setMessage("Ya existe una cuenta con el correo electrónico " + email + ". ¿Deseas vincular tu cuenta de Facebook con tu cuenta de Google?")
+                .setPositiveButton("Sí", (dialog, which) ->{
+                    // Almacenar la credencial de Facebook para vinculación posterior
+                    facebookCredential = credential;
+                    // Iniciar el flujo de Google Sign-In para vincular
+                    activityResultLauncherGoogleLinking.launch(gClient.getSignInIntent());
+                })
+                .setNegativeButton("No", (dialog, which) ->{
+                    Toast.makeText(LoginActivity.this, "No se han vinculado las cuentas.", Toast.LENGTH_SHORT).show();
+                })
+                .setCancelable(false)
+                .show();
+    }
+
+
+    private void vincularGoogleConFacebook(GoogleSignInAccount account){
+        AuthCredential googleCredential = GoogleAuthProvider.getCredential(account.getIdToken(), null);
+
+        // Reautenticar con Google
+        mAuth.signInWithCredential(googleCredential)
+                .addOnCompleteListener(this, task -> {
+                    if (task.isSuccessful()) {
+                        // Vincular la credencial de Facebook con la cuenta de Google
+                        mAuth.getCurrentUser().linkWithCredential(facebookCredential)
+                                .addOnCompleteListener(this, linkTask -> {
+                                    if (linkTask.isSuccessful()) {
+                                        Log.d(TAG, "linkWithCredential:success");
+                                        FirebaseUser linkedUser = linkTask.getResult().getUser();
+                                        Toast.makeText(LoginActivity.this, "Cuentas de Google y Facebook vinculadas exitosamente.", Toast.LENGTH_SHORT).show();
+                                        irAMain();
+                                    } else {
+                                        Log.w(TAG, "linkWithCredential:failure", linkTask.getException());
+                                        Toast.makeText(LoginActivity.this, "Vinculación de cuentas fallida.", Toast.LENGTH_SHORT).show();
+                                    }
+                                });
+                    } else {
+                        Log.w(TAG, "signInWithCredential:failure during linking", task.getException());
+                        Toast.makeText(LoginActivity.this, "Autenticación con Google fallida para vincular.", Toast.LENGTH_SHORT).show();
                     }
                 });
     }

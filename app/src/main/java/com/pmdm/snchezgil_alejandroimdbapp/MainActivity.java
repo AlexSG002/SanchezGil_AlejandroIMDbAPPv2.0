@@ -2,6 +2,8 @@ package com.pmdm.snchezgil_alejandroimdbapp;
 
 import android.content.Intent;
 
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
@@ -10,6 +12,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -19,7 +22,6 @@ import android.widget.Toast;
 import com.facebook.AccessToken;
 import com.facebook.GraphRequest;
 import com.facebook.GraphResponse;
-import com.facebook.Profile;
 import com.facebook.login.LoginManager;
 import com.google.android.gms.auth.api.signin.GoogleSignIn;
 import com.google.android.gms.auth.api.signin.GoogleSignInClient;
@@ -29,9 +31,13 @@ import com.google.android.gms.tasks.Task;
 import com.google.android.material.navigation.NavigationView;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
-import com.google.gson.JsonObject;
+import com.pmdm.snchezgil_alejandroimdbapp.database.IMDbDatabaseHelper;
 import com.pmdm.snchezgil_alejandroimdbapp.databinding.ActivityMainBinding;
 
+import androidx.activity.result.ActivityResult;
+import androidx.activity.result.ActivityResultCallback;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.appcompat.app.AppCompatActivity;
@@ -44,6 +50,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -51,29 +60,34 @@ import java.net.URL;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import javax.crypto.Cipher;
+import javax.crypto.spec.SecretKeySpec;
+import android.util.Base64;
+
 public class MainActivity extends AppCompatActivity {
     //Declaramos variables
     private AppBarConfiguration mAppBarConfiguration;
     private ActivityMainBinding binding;
     private GoogleSignInClient gClient;
     private GoogleSignInOptions gOptions;
-    private TextView nombre;
-    private TextView email;
-    private ImageView imagen;
+    private TextView textViewNombre;
+    private TextView textViewEmail;
+    private ImageView imageViewImagen;
     private ExecutorService executorService;
     private Handler mainHandler;
     private FirebaseAuth mAuth;
+    private IMDbDatabaseHelper database;
+    private ActivityResultLauncher<Intent> editUserLauncher;
 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        database = new IMDbDatabaseHelper(this);
+        SQLiteDatabase db = database.getWritableDatabase();
+
         AccessToken accessToken = AccessToken.getCurrentAccessToken();
-        boolean isLoggedIn = accessToken != null && !accessToken.isExpired();
-        //Profile p = Profile.getCurrentProfile();
-        //p.getFirstName();
-        //p.getLastName();
-        //p.getProfilePictureUri(300,300);
         //Obtenemos de nuevo la instancia de Firebase.
         mAuth = FirebaseAuth.getInstance();
         //Obtenemos de nuevo el usuario.
@@ -102,6 +116,11 @@ public class MainActivity extends AppCompatActivity {
         //Obtenemos una instancia del header view para poder configurar el botón de Logout.
         View headerView = navigationView.getHeaderView(0);
 
+        //Obtenemos los detalles del header para modificar el nombre, email e imagen.
+        textViewNombre = headerView.findViewById(R.id.nombre);
+        textViewEmail = headerView.findViewById(R.id.email);
+        imageViewImagen = headerView.findViewById(R.id.imageView);
+
         //Botón de logout para cerrar sesión.
         Button LogoutButton = headerView.findViewById(R.id.buttonLogout);
         LogoutButton.setOnClickListener(new View.OnClickListener() {
@@ -118,54 +137,276 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
         });
-        if(usuario!=null && accessToken!=null) {
-            GraphRequest request = GraphRequest.newGraphPathRequest(accessToken,
-                    "/me/picture",
-                    new GraphRequest.Callback() {
-                        @Override
-                        public void onCompleted(@NonNull GraphResponse graphResponse) {
-                            try {
-                                JSONObject data = graphResponse.getJSONObject();
-                                if (data != null) {
-                                    JSONObject pictureData = data.getJSONObject("data");
-                                    String imageUrl = pictureData.getString("url");
 
-                                    cargarImagen(imageUrl, imagen);
-                                }
-                            } catch (JSONException e) {
-                                e.printStackTrace();
-                            }
-                        }
-                    });
+        configurarEditUserLauncher();
 
-            Bundle parameters = new Bundle();
-            parameters.putBoolean("redirect", false);
-            parameters.putInt("height", 300);
-            parameters.putInt("width", 300);
-            request.setParameters(parameters);
-            request.executeAsync();
+        if(comprobarUsuarioExisteBD(db, usuario)){
+            cargarUsuarioDesdeBD(db, usuario);
+        }else {
+            crearInformacionUsuarioBD(db, usuario, null, null, null);
+            cargarInformacionUsuario(usuario, accessToken);
         }
-        //Obtenemos los detalles del header para modificar el nombre, email e imagen.
-        nombre = headerView.findViewById(R.id.nombre);
-        email = headerView.findViewById(R.id.email);
-        imagen = headerView.findViewById(R.id.imageView);
+    }
+
+    private void cargarUsuarioDesdeBD(SQLiteDatabase db, FirebaseUser usuario) {
+        String sql = "SELECT * FROM t_usuarios WHERE idUsuario = ?";
+        Cursor cursor = db.rawQuery(sql, new String[]{usuario.getUid()});
+
+        if(cursor.moveToFirst()){
+            int colNombre = cursor.getColumnIndex("nombre");
+            int colEmail = cursor.getColumnIndex("email");
+            int colLoginRegistro = cursor.getColumnIndex("loginRegistro");
+            int colLogoutRegistro = cursor.getColumnIndex("logoutRegistro");
+            int colDireccion = cursor.getColumnIndex("direccion");
+            int colTelefono = cursor.getColumnIndex("telefono");
+            int colFoto = cursor.getColumnIndex("foto");
+
+            String nombre = "";
+            String email = "";
+            String loginRegistro = "";
+            String logoutRegistro = "";
+            String direccion = "";
+            String telefono = "";
+            String foto = "";
+
+            // Asignar valores si las columnas existen
+            if (colNombre != -1) {
+                nombre = cursor.getString(colNombre);
+            }
+            if (colEmail != -1) {
+                email = cursor.getString(colEmail);
+            }
+            if (colLoginRegistro != -1) {
+                loginRegistro = cursor.getString(colLoginRegistro);
+            }
+            if (colLogoutRegistro != -1) {
+                logoutRegistro = cursor.getString(colLogoutRegistro);
+            }
+            if (colDireccion != -1) {
+                String direccionEncriptada = cursor.getString(colDireccion);
+                try {
+                    direccion = desencriptar(direccionEncriptada);
+                } catch (Exception e) {
+                    Log.e("MainActivity", "Error descifrando dirección: " + e.getMessage());
+                    direccion = direccionEncriptada;
+                }
+            }
+            if (colTelefono != -1) {
+                String telefonoEncriptado = cursor.getString(colTelefono);
+                try {
+                    telefono = desencriptar(telefonoEncriptado);
+                } catch (Exception e) {
+                    Log.e("MainActivity", "Error descifrando teléfono: " + e.getMessage());
+                    telefono = telefonoEncriptado;
+                }
+            }
+            if (colFoto != -1) {
+                foto = cursor.getString(colFoto);
+            }
+
+            // Cargar los datos en la UI o en variables
+            textViewNombre.setText(nombre);
+            textViewEmail.setText(email);
+
+            if (foto != null && !foto.isEmpty()) {
+                File imageFile = new File(foto);
+                if (imageFile.exists()) {
+                    imageViewImagen.setImageURI(Uri.fromFile(imageFile));
+                } else {
+                    Log.e("MainActivity", "Archivo de imagen no encontrado: " + foto);
+                }
+            } else {
+                Log.d("MainActivity", "No se proporcionó una foto para el usuario.");
+            }
+        } else {
+            Toast.makeText(this, "Usuario no encontrado en la base de datos", Toast.LENGTH_SHORT).show();
+        }
+
+        cursor.close();
+    }
+
+    private String encriptar(String texto) throws Exception {
+        String secret = "MyDifficultPassw";
+        SecretKeySpec secretKey = new SecretKeySpec(secret.getBytes("UTF-8"), "AES");
+        Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey);
+        byte[] encrypted = cipher.doFinal(texto.getBytes("UTF-8"));
+        return Base64.encodeToString(encrypted, Base64.DEFAULT);
+    }
+
+    private String desencriptar(String texto) throws Exception {
+        String secret = "MyDifficultPassw";
+        SecretKeySpec secretKey = new SecretKeySpec(secret.getBytes("UTF-8"), "AES");
+        Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
+        cipher.init(Cipher.DECRYPT_MODE, secretKey);
+        byte[] decrypted = cipher.doFinal(Base64.decode(texto, Base64.DEFAULT));
+        return new String(decrypted, "UTF-8");
+    }
+
+    private boolean comprobarUsuarioExisteBD(SQLiteDatabase db, FirebaseUser usuario) {
+        if (usuario != null) {
+            String sql = "SELECT idUsuario FROM t_usuarios WHERE idUsuario = ?";
+            Cursor cursor = db.rawQuery(sql, new String[]{usuario.getUid()});
+
+            boolean existe = cursor.moveToFirst();
+
+            cursor.close();
+
+            return existe;
+        }
+
+        return false;
+    }
+
+    private void crearInformacionUsuarioBD(SQLiteDatabase db, FirebaseUser usuario, String direccion, String telefono, String imagenObtenida){
+
+        database.insertarUsuario(db, usuario.getUid(), usuario.getDisplayName(), usuario.getEmail(), null, null, direccion, telefono, imagenObtenida);
+    }
+
+    private void cargarInformacionUsuario(FirebaseUser usuario, AccessToken accessToken) {
         //Si el usuario no es nulo obtendra los datos del usuario de Firebase.
         if(usuario != null) {
+            usuario.reload().addOnCompleteListener(task -> {
             String nombreCuenta = usuario.getDisplayName();
             String emailCuenta = usuario.getEmail();
             Uri imagenCuenta = usuario.getPhotoUrl();
-            //Establecemos los datos en los textView.
-            nombre.setText(nombreCuenta);
-            email.setText(emailCuenta);
+            if(accessToken!=null){
+                textViewNombre.setText(nombreCuenta);
+                textViewEmail.setText("Conectado con Facebook");
+                    GraphRequest request = GraphRequest.newGraphPathRequest(accessToken,
+                            "/me/picture",
+                            new GraphRequest.Callback() {
+                                @Override
+                                public void onCompleted(@NonNull GraphResponse graphResponse) {
+                                    try {
+                                        JSONObject data = graphResponse.getJSONObject();
+                                        if (data != null) {
+                                            JSONObject pictureData = data.getJSONObject("data");
+                                            String imageUrl = pictureData.getString("url");
+
+                                            cargarImagen(imageUrl, imageViewImagen);
+                                        }
+                                    } catch (JSONException e) {
+                                        e.printStackTrace();
+                                    }
+                                }
+                            });
+                    Bundle parameters = new Bundle();
+                    parameters.putBoolean("redirect", false);
+                    parameters.putInt("height", 300);
+                    parameters.putInt("width", 300);
+                    request.setParameters(parameters);
+                    request.executeAsync();
+
+            }else {
+                //Establecemos los datos en los textView.
+                textViewNombre.setText(nombreCuenta);
+                textViewEmail.setText(emailCuenta);
+            }
             //Comprobamos que la imagen no sea nula y utilizamos executor para obtener la imagen del usuario.
             if(imagenCuenta!=null){
-                executorService.execute(new DescargarImagen(imagenCuenta.toString(), imagen));
+                executorService.execute(new DescargarImagen(imagenCuenta.toString(), imageViewImagen));
             }
+            });
             //En caso de que el usuario sea nulo, vuelve al login.
         }else{
             volverALogin();
         }
     }
+
+
+    private void configurarEditUserLauncher() {
+        editUserLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                new ActivityResultCallback<ActivityResult>() {
+                    @Override
+                    public void onActivityResult(ActivityResult result) {
+                        if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                            Intent data = result.getData();
+                            String nombreActualizado = data.getStringExtra("nombreActualizado");
+                            String fotoActualizada = data.getStringExtra("imagenActualizada");
+                            String direccionActualizada = data.getStringExtra("direccionActualizada");
+                            String telefonoActualizado = data.getStringExtra("telefonoActualizado");
+                            if (nombreActualizado != null) {
+                                textViewNombre.setText(nombreActualizado);
+                            }
+
+                            if (fotoActualizada != null) {
+                                Uri uri = Uri.parse(fotoActualizada);
+                                imageViewImagen.setImageURI(uri);
+
+                            }
+                        }
+                    }
+                });
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        int id = item.getItemId();
+        if(id == R.id.action_editUser){
+            irAEditarUsuario();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    private void irAEditarUsuario() {
+        Intent i = new Intent(MainActivity.this, EditUserActivity.class);
+        String nombreCuenta = "";
+        String idUsuario = mAuth.getCurrentUser().getUid();
+        if (textViewNombre != null) {
+            nombreCuenta = String.valueOf(textViewNombre.getText());
+        }
+        String emailCuenta = String.valueOf(textViewEmail.getText());
+        i.putExtra("idUsuario", idUsuario);
+        i.putExtra("nombre", nombreCuenta);
+        i.putExtra("email", emailCuenta);
+
+        SQLiteDatabase db = database.getReadableDatabase();
+        Cursor cursor = db.rawQuery("SELECT telefono, direccion, foto FROM t_usuarios WHERE idUsuario = ?", new String[]{idUsuario});
+        if (cursor.moveToFirst()) {
+            String telefonoEncriptado = "";
+            int colTelefono = cursor.getColumnIndex("telefono");
+            if (colTelefono != -1) {
+                telefonoEncriptado = cursor.getString(colTelefono);
+            }
+            String direccionEncriptada = "";
+            int colDireccion = cursor.getColumnIndex("direccion");
+            if (colDireccion != -1) {
+                direccionEncriptada = cursor.getString(colDireccion);
+            }
+            String foto = "";
+            int colFoto = cursor.getColumnIndex("foto");
+            if (colFoto != -1) {
+                foto = cursor.getString(colFoto);
+            }
+
+            String telefonoDesencriptado = telefonoEncriptado;
+            String direccionDesencriptada = direccionEncriptada;
+            try {
+                telefonoDesencriptado = desencriptar(telefonoEncriptado);
+            } catch (Exception e) {
+                Log.e("MainActivity", "Error descifrando teléfono: " + e.getMessage());
+            }
+            try {
+                direccionDesencriptada = desencriptar(direccionEncriptada);
+            } catch (Exception e) {
+                Log.e("MainActivity", "Error descifrando dirección: " + e.getMessage());
+            }
+
+            i.putExtra("telefono", telefonoDesencriptado);
+            i.putExtra("direccion", direccionDesencriptada);
+            if (foto != null && !foto.isEmpty()) {
+                i.putExtra("imagenUri", foto);
+            }
+        }
+        cursor.close();
+
+        editUserLauncher.launch(i);
+    }
+
+
 
     private void cargarImagen(String url, ImageView imageView) {
         executorService.execute(new DescargarImagen(url, imageView));
@@ -193,6 +434,8 @@ public class MainActivity extends AppCompatActivity {
     private class DescargarImagen implements Runnable {
         private final String url;
         private final ImageView imageView;
+        private static final int MAX_WIDTH = 300;
+        private static final int MAX_HEIGHT = 300;
         //Obtenemos la url y el imageView.
         private DescargarImagen(String url, ImageView imageView) {
             this.url = url;
@@ -201,14 +444,19 @@ public class MainActivity extends AppCompatActivity {
         //Método run para ejecutar en el hilo principal
         @Override
         public void run() {
-            //Utilizamos el mismo método que en la aplicación de AsyncTask.
             try {
                 byte[] imagenBytes = descargaImagen(url);
+                //Con este método obtenemos el insample size para decodificar la imágen con el tamaño que queremos como máximo de 300x300.
+                BitmapFactory.Options options = new BitmapFactory.Options();
+                options.inJustDecodeBounds = true;
+                BitmapFactory.decodeByteArray(imagenBytes, 0, imagenBytes.length, options);
 
-                BitmapFactory.decodeByteArray(imagenBytes, 0, imagenBytes.length);
-                Bitmap bitmap = BitmapFactory.decodeByteArray(imagenBytes, 0, imagenBytes.length);
+                options.inSampleSize = calculateInSampleSize(options, MAX_WIDTH, MAX_HEIGHT);
 
-                mainHandler.post(() -> imageView.setImageBitmap(bitmap));
+                options.inJustDecodeBounds = false;
+                Bitmap bitmapEscalado = BitmapFactory.decodeByteArray(imagenBytes, 0, imagenBytes.length, options);
+
+                mainHandler.post(() -> imageView.setImageBitmap(bitmapEscalado));
 
             } catch (IOException e) {
                 mainHandler.post(() -> Toast.makeText(MainActivity.this,
@@ -216,31 +464,56 @@ public class MainActivity extends AppCompatActivity {
                         Toast.LENGTH_SHORT).show());
             }
         }
+
+        // Método para calcular el inSampleSize
+        private int calculateInSampleSize(BitmapFactory.Options options, int reqWidth, int reqHeight) {
+            // Dimensiones originales de la imagen
+            final int altura = options.outHeight;
+            final int anchura = options.outWidth;
+            int inSampleSize = 1;
+
+            if (altura > reqHeight || anchura > reqWidth) {
+                final int mitadAltura = altura / 2;
+                final int mitadAnchura = anchura / 2;
+
+                // Calcular el inSampleSize más grande que sea potencia de 2 y mantenga ambas dimensiones
+                // mayores que las requeridas
+                while ((mitadAltura / inSampleSize) >= reqHeight
+                        && (mitadAnchura / inSampleSize) >= reqWidth) {
+                    inSampleSize *= 2;
+                }
+            }
+
+            return inSampleSize;
+        }
         //Método que conecta a la url y obtiene la imagen igual que en la práctica de executor.
         private byte[] descargaImagen(String myurl) throws IOException {
             InputStream is = null;
             ByteArrayOutputStream buffer = new ByteArrayOutputStream();
             try {
                 URL url = new URL(myurl);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setReadTimeout(10000);
-                conn.setConnectTimeout(15000);
-                conn.setRequestMethod("GET");
-                conn.setDoInput(true);
+                if (url.getProtocol().equals("file")) {
+                    is = new FileInputStream(url.getPath());
+                } else {
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setReadTimeout(10000);
+                    conn.setConnectTimeout(15000);
+                    conn.setRequestMethod("GET");
+                    conn.setDoInput(true);
 
-                conn.connect();
-                int response = conn.getResponseCode();
-                if (response != HttpURLConnection.HTTP_OK) {
-                    throw new IOException("Error en la conexión: " + response);
+                    conn.connect();
+                    int response = conn.getResponseCode();
+                    if (response != HttpURLConnection.HTTP_OK) {
+                        throw new IOException("Error en la conexión: " + response);
+                    }
+                    is = conn.getInputStream();
+                    byte[] datos = new byte[1024];
+                    int nRead;
+
+                    while ((nRead = is.read(datos, 0, datos.length)) != -1) {
+                        buffer.write(datos, 0, nRead);
+                    }
                 }
-                is = conn.getInputStream();
-                byte[] datos = new byte[1024];
-                int nRead;
-
-                while ((nRead = is.read(datos, 0, datos.length)) != -1) {
-                    buffer.write(datos, 0, nRead);
-                }
-
                 return buffer.toByteArray();
             } finally {
                 if (is != null) {
