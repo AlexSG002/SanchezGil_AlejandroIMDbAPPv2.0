@@ -29,7 +29,7 @@ import androidx.recyclerview.widget.GridLayoutManager;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.gson.GsonBuilder;
 import com.pmdm.snchezgil_alejandroimdbapp.adapter.MovieAdapter;
-import com.pmdm.snchezgil_alejandroimdbapp.database.FavoritesDatabaseHelper;
+import com.pmdm.snchezgil_alejandroimdbapp.database.IMDbDatabaseHelper;
 import com.pmdm.snchezgil_alejandroimdbapp.databinding.FragmentFavoritosBinding;
 import com.pmdm.snchezgil_alejandroimdbapp.models.Movie;
 
@@ -51,7 +51,7 @@ public class FavoritosFragment extends Fragment {
     private Button buttonCompartir;
     private static final int CODIGO_PERMISOS_BLUETOOTH = 1;
     private List<Movie> pelisFavoritas = new ArrayList<>();
-    private FavoritesDatabaseHelper database;
+    private IMDbDatabaseHelper database;
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater,
                              ViewGroup container, Bundle savedInstanceState) {
@@ -73,7 +73,7 @@ public class FavoritosFragment extends Fragment {
             }
         });
         //Recuperamos la base de datos para cargar las peliculas
-        database = new FavoritesDatabaseHelper(requireContext());
+        database = new IMDbDatabaseHelper(requireContext());
 
         cargarFavoritosDesdeBD();
 
@@ -85,7 +85,7 @@ public class FavoritosFragment extends Fragment {
             SQLiteDatabase db = database.getReadableDatabase();
             //Con un cursor creamos una consulta que iremos recorriendo, la limité a 10 porque limité los favoritos a 10.
             Cursor cursor = db.rawQuery(
-                    "SELECT * FROM " + FavoritesDatabaseHelper.TABLE_FAVORITOS + " WHERE idUsuario=? LIMIT 10",
+                    "SELECT * FROM " + IMDbDatabaseHelper.TABLE_FAVORITOS + " WHERE idUsuario=? LIMIT 10",
                     new String[]{idUsuario}
             );
             //Limpiamos la lista cada vez que se carguen nuevos favoritos.

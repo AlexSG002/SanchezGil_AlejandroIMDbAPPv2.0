@@ -4,7 +4,6 @@ import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.Parcelable;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -23,7 +22,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.pmdm.snchezgil_alejandroimdbapp.adapter.MovieAdapter;
-import com.pmdm.snchezgil_alejandroimdbapp.database.FavoritesDatabaseHelper;
+import com.pmdm.snchezgil_alejandroimdbapp.database.IMDbDatabaseHelper;
 import com.pmdm.snchezgil_alejandroimdbapp.databinding.FragmentHomeBinding;
 import com.pmdm.snchezgil_alejandroimdbapp.models.Movie;
 
@@ -59,7 +58,7 @@ public class HomeFragment extends Fragment {
     private static final String ENDPOINT_TOP10 = "title/get-top-meter?topMeterTitlesType=ALL&limit=10";
     private static final String ENDPOINT_DESCRIPCION = "title/get-overview?tconst=";
     private static List<Movie> peliculasCargadas = new ArrayList<>();
-    private FavoritesDatabaseHelper database;
+    private IMDbDatabaseHelper database;
     private boolean favoritos = false;
 
     //Al crearse la vista cargamos las películas.
@@ -70,7 +69,7 @@ public class HomeFragment extends Fragment {
         binding = FragmentHomeBinding.inflate(inflater, container, false);
         View root = binding.getRoot();
 
-        database = new FavoritesDatabaseHelper(getContext());
+        database = new IMDbDatabaseHelper(getContext());
         SQLiteDatabase db = database.getWritableDatabase();
 
         executorService = Executors.newSingleThreadExecutor();

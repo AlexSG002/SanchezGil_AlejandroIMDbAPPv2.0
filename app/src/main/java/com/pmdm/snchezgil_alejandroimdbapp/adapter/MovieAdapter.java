@@ -17,7 +17,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.pmdm.snchezgil_alejandroimdbapp.MovieDetailsActivity;
 import com.pmdm.snchezgil_alejandroimdbapp.R;
-import com.pmdm.snchezgil_alejandroimdbapp.database.FavoritesDatabaseHelper;
+import com.pmdm.snchezgil_alejandroimdbapp.database.IMDbDatabaseHelper;
 import com.pmdm.snchezgil_alejandroimdbapp.models.Movie;
 
 import java.io.InputStream;
@@ -34,10 +34,10 @@ public class MovieAdapter extends RecyclerView.Adapter<MovieAdapter.ViewHolder>{
     private ExecutorService executorService = Executors.newSingleThreadExecutor();
     private Handler mainHandler = new Handler();
     private String idUsuario;
-    private FavoritesDatabaseHelper databaseHelper;
+    private IMDbDatabaseHelper databaseHelper;
     private boolean favoritos;
 
-    public MovieAdapter(Context context, List<Movie> movies, String idUsuario, FavoritesDatabaseHelper databaseHelper, boolean favoritos){
+    public MovieAdapter(Context context, List<Movie> movies, String idUsuario, IMDbDatabaseHelper databaseHelper, boolean favoritos){
         this.context = context;
         this.movies = movies;
         this.idUsuario = idUsuario;
@@ -143,7 +143,7 @@ public class MovieAdapter extends RecyclerView.Adapter<MovieAdapter.ViewHolder>{
     private void eliminarFavorito(Movie movie, int position) {
         SQLiteDatabase dbWrite = databaseHelper.getWritableDatabase();
         int rowsDeleted = dbWrite.delete(
-                FavoritesDatabaseHelper.TABLE_FAVORITOS,
+                IMDbDatabaseHelper.TABLE_FAVORITOS,
                 "idUsuario=? AND idPelicula=?",
                 new String[]{idUsuario, movie.getId()}
         );

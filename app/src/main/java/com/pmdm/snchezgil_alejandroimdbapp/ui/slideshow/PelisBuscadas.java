@@ -15,7 +15,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.pmdm.snchezgil_alejandroimdbapp.adapter.MovieAdapter;
-import com.pmdm.snchezgil_alejandroimdbapp.database.FavoritesDatabaseHelper;
+import com.pmdm.snchezgil_alejandroimdbapp.database.IMDbDatabaseHelper;
 import com.pmdm.snchezgil_alejandroimdbapp.databinding.FragmentPelisBuscadasBinding;
 import com.pmdm.snchezgil_alejandroimdbapp.models.Movie;
 
@@ -32,7 +32,7 @@ public class PelisBuscadas extends Fragment {
     private String idUsuario;
     private List<Movie> pelis = new ArrayList<>();
     private boolean favoritos = false;
-    private FavoritesDatabaseHelper database;
+    private IMDbDatabaseHelper database;
     private MovieAdapter adapter;
 
     public PelisBuscadas() {
@@ -74,7 +74,7 @@ public class PelisBuscadas extends Fragment {
         executorService = Executors.newSingleThreadExecutor();
         mainHandler = new Handler(Looper.getMainLooper());
 
-        database = new FavoritesDatabaseHelper(requireContext());
+        database = new IMDbDatabaseHelper(requireContext());
 
         configurarRecyclerView();
 
