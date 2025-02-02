@@ -56,4 +56,6 @@ dependencies {
     implementation ("com.google.code.gson:gson:2.10.1")
     implementation ("com.facebook.android:facebook-login:latest.release")
     implementation ("com.hbb20:ccp:2.7.3")
+    implementation ("com.google.android.libraries.places:places:3.3.0")
+    implementation ("com.google.android.gms:play-services-location:21.0.1")
 }
