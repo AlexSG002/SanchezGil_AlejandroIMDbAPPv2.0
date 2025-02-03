@@ -31,8 +31,6 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
-import com.google.android.recaptcha.RecaptchaException;
-import com.google.firebase.auth.ActionCodeSettings;
 import com.google.firebase.auth.AuthCredential;
 import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FacebookAuthProvider;
@@ -40,13 +38,10 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthUserCollisionException;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.GoogleAuthProvider;
-import com.google.firebase.auth.SignInMethodQueryResult;
+import com.google.firebase.firestore.FirebaseFirestore;
 import com.pmdm.snchezgil_alejandroimdbapp.database.IMDbDatabaseHelper;
+import com.pmdm.snchezgil_alejandroimdbapp.sync.UsersSync;
 import com.pmdm.snchezgil_alejandroimdbapp.utils.AppLifecycleManager;
-
-import java.text.SimpleDateFormat;
-import java.util.Arrays;
-import java.util.List;
 
 public class LoginActivity extends AppCompatActivity {
     //Declaramos las variables de Firebase y GoogleSignInClient.
@@ -80,14 +75,21 @@ public class LoginActivity extends AppCompatActivity {
         //Declaramos e inicializamos la variable usuarioActual a el usuario que recogemos con la variable de Firebase.
         FirebaseUser usuarioActual = mAuth.getCurrentUser();
         //Comprobamos que el usuario no sea nulo y navegamos al main.
-        if (usuarioActual != null){
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-            String formattedDate = sdf.format(System.currentTimeMillis());
-            String loginLog = formattedDate;
-            IMDbDatabaseHelper dbHelper = new IMDbDatabaseHelper(getApplicationContext());
-            dbHelper.actualizarLoginRegistro(usuarioActual.getUid(), loginLog);
-            irAMain();
+        if (usuarioActual != null) {
+            UsersSync usersSync = new UsersSync(FirebaseFirestore.getInstance(), new IMDbDatabaseHelper(getApplicationContext()));
+            usersSync.descargarUsuariosNubeALocal(new UsersSync.CloudSyncCallback() {
+                @Override
+                public void onSuccess() {
+                    irAMain();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    Log.e("LoginActivity", "Error sincronizando datos desde la nube: " + e.getMessage());
+                }
+            });
         }
+
         //Launcher para lanzar la pestaña de selección de cuenta de Google.
         activityResultLauncherGoogleSignIn = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
@@ -251,7 +253,6 @@ public class LoginActivity extends AppCompatActivity {
     }
 
 
-
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         callbackManager.onActivityResult(requestCode, resultCode, data);
@@ -276,6 +277,7 @@ public class LoginActivity extends AppCompatActivity {
     }
     //Método para ir al Main.
     private void irAMain(){
+        AppLifecycleManager.isLogging = true;
         finish();
         Intent intent = new Intent(LoginActivity.this, MainActivity.class);
         startActivity(intent);

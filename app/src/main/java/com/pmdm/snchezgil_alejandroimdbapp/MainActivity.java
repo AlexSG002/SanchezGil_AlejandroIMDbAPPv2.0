@@ -1,7 +1,9 @@
 package com.pmdm.snchezgil_alejandroimdbapp;
 
+import android.content.Context;
 import android.content.Intent;
 
+import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Bitmap;
@@ -31,8 +33,13 @@ import com.google.android.gms.tasks.Task;
 import com.google.android.material.navigation.NavigationView;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.FieldValue;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.SetOptions;
 import com.pmdm.snchezgil_alejandroimdbapp.database.IMDbDatabaseHelper;
 import com.pmdm.snchezgil_alejandroimdbapp.databinding.ActivityMainBinding;
+import com.pmdm.snchezgil_alejandroimdbapp.sync.FavoritesSync;
+import com.pmdm.snchezgil_alejandroimdbapp.sync.UsersSync;
 
 import androidx.activity.result.ActivityResult;
 import androidx.activity.result.ActivityResultCallback;
@@ -52,11 +59,13 @@ import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.text.SimpleDateFormat;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -78,14 +87,16 @@ public class MainActivity extends AppCompatActivity {
     private FirebaseAuth mAuth;
     private IMDbDatabaseHelper database;
     private ActivityResultLauncher<Intent> editUserLauncher;
+    FirebaseFirestore firestore;
 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
+        firestore = FirebaseFirestore.getInstance();
         database = new IMDbDatabaseHelper(this);
         SQLiteDatabase db = database.getWritableDatabase();
+
 
         AccessToken accessToken = AccessToken.getCurrentAccessToken();
         //Obtenemos de nuevo la instancia de Firebase.
@@ -126,7 +137,21 @@ public class MainActivity extends AppCompatActivity {
         LogoutButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                //Cerramos sesión en firebase y en el cliente de google.
+                // Generamos el logout timestamp
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                String logoutLog = sdf.format(System.currentTimeMillis());
+
+                // Actualizamos la BD local:
+                IMDbDatabaseHelper dbHelper = new IMDbDatabaseHelper(MainActivity.this);
+                FirebaseUser user = mAuth.getCurrentUser();
+                if(user != null) {
+                    dbHelper.actualizarLogoutRegistro(user.getUid(), logoutLog);
+
+                    // También actualizamos Firestore:
+                    actualizarLogoutNube(user.getUid(), logoutLog);
+                }
+
+                // Luego cerramos sesión en Firebase y en los clientes de Google/Facebook
                 mAuth.signOut();
                 LoginManager.getInstance().logOut();
                 gClient.signOut().addOnCompleteListener(new OnCompleteListener<Void>() {
@@ -138,15 +163,100 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+
         configurarEditUserLauncher();
 
-        if(comprobarUsuarioExisteBD(db, usuario)){
-            cargarUsuarioDesdeBD(db, usuario);
-        }else {
-            crearInformacionUsuarioBD(db, usuario, null, null, null);
-            cargarInformacionUsuario(usuario, accessToken);
+        UsersSync usersSync = new UsersSync(firestore, database);
+        usersSync.descargarUsuariosNubeALocal(new UsersSync.CloudSyncCallback() {
+            @Override
+            public void onSuccess() {
+                SQLiteDatabase nuevoDb = database.getReadableDatabase();
+                // Una vez sincronizados, comprobamos si el usuario existe en la base local.
+                if (comprobarUsuarioExisteBD(nuevoDb, usuario)) {
+                    cargarUsuarioDesdeBD(nuevoDb, usuario);
+                } else {
+                    // Si no existe, se crea la información local
+                    crearInformacionUsuarioBD(nuevoDb, usuario, null, null, null);
+                    cargarInformacionUsuario(usuario, accessToken);
+                }
+                actualizarDatos(usuario);
+                usersSync.subirUsuariosLocalANube();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Log.e("MainActivity", "Error sincronizando datos desde la nube: " + e.getMessage());
+            }
+        });
+
+        FavoritesSync favoritesSync = new FavoritesSync(firestore, database);
+        favoritesSync.descargarFavoritosNubeALocal(new FavoritesSync.CloudSyncCallback(){
+            @Override
+            public void onSuccess() {
+                Toast.makeText(MainActivity.this,"Lista de favoritos actualizada!", Toast.LENGTH_SHORT).show();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Log.e("MainActivity", "Error sincronizando datos desde la nube: " + e.getMessage());
+
+            }
+        });
+
+    }
+
+    private void actualizarDatos(FirebaseUser usuarioActual) {
+        Log.d("LoginActivity", "Entro");
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        String formattedDate = sdf.format(System.currentTimeMillis());
+        String loginLog = formattedDate;
+        IMDbDatabaseHelper dbHelper = new IMDbDatabaseHelper(getApplicationContext());
+        dbHelper.actualizarLoginRegistro(usuarioActual.getUid(), loginLog);
+        actualizarLoginNube(usuarioActual.getUid(), loginLog);
+        actualizarLogoutPendiente();
+    }
+
+    private void actualizarLoginNube(String idUsuario, String loginLog) {
+        FirebaseFirestore firestore = FirebaseFirestore.getInstance();
+        Map<String, Object> data = new HashMap<>();
+        data.put("loginRegistro", FieldValue.arrayUnion(loginLog));
+        firestore.collection("usuarios").document(idUsuario)
+                .set(data, SetOptions.merge())
+                .addOnSuccessListener(aVoid ->
+                        Log.d("Firestore", "Login de usuario " + idUsuario + " actualizado en la nube"))
+                .addOnFailureListener(e ->
+                        Log.e("Firestore", "Error actualizando login de usuario " + idUsuario, e));
+    }
+
+    private void actualizarLogoutPendiente() {
+        SharedPreferences preferences = getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
+        String lastLogout = preferences.getString("last_logout", null);
+        if (lastLogout != null) {
+            IMDbDatabaseHelper dbHelper = new IMDbDatabaseHelper(getApplicationContext());
+            FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+            if (user != null) {
+                dbHelper.actualizarLogoutRegistro(user.getUid(), lastLogout);
+                Log.d("LoginActivity", "Logout pendiente (" + lastLogout + ") guardado en la BD local para: " + user.getEmail());
+            }
+
+            SharedPreferences.Editor editor = preferences.edit();
+            editor.remove("last_logout");
+            editor.apply();
         }
     }
+
+    private void actualizarLogoutNube(String idUsuario, String logoutLog) {
+        FirebaseFirestore firestore = FirebaseFirestore.getInstance();
+        Map<String, Object> data = new HashMap<>();
+        data.put("logoutRegistro",  FieldValue.arrayUnion(logoutLog));
+        firestore.collection("usuarios").document(idUsuario)
+                .set(data, SetOptions.merge())
+                .addOnSuccessListener(aVoid ->
+                        Log.d("Firestore", "Logout de usuario " + idUsuario + " actualizado en la nube"))
+                .addOnFailureListener(e ->
+                        Log.e("Firestore", "Error actualizando logout de usuario " + idUsuario, e));
+    }
+
 
     private void cargarUsuarioDesdeBD(SQLiteDatabase db, FirebaseUser usuario) {
         String sql = "SELECT * FROM t_usuarios WHERE idUsuario = ?";
@@ -169,7 +279,7 @@ public class MainActivity extends AppCompatActivity {
             String telefono = "";
             String foto = "";
 
-            // Asignar valores si las columnas existen
+
             if (colNombre != -1) {
                 nombre = cursor.getString(colNombre);
             }
@@ -211,7 +321,8 @@ public class MainActivity extends AppCompatActivity {
             if (foto != null && !foto.isEmpty()) {
                 File imageFile = new File(foto);
                 if (imageFile.exists()) {
-                    imageViewImagen.setImageURI(Uri.fromFile(imageFile));
+                    Bitmap scaledBitmap = decodeSampledBitmapFromFile(imageFile.getAbsolutePath(), 300, 300);
+                    imageViewImagen.setImageBitmap(scaledBitmap);
                 } else {
                     Log.e("MainActivity", "Archivo de imagen no encontrado: " + foto);
                 }
@@ -224,6 +335,33 @@ public class MainActivity extends AppCompatActivity {
 
         cursor.close();
     }
+
+    private Bitmap decodeSampledBitmapFromFile(String filePath, int reqWidth, int reqHeight) {
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(filePath, options);
+
+        options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight);
+
+        options.inJustDecodeBounds = false;
+        return BitmapFactory.decodeFile(filePath, options);
+    }
+
+    private int calculateInSampleSize(BitmapFactory.Options options, int reqWidth, int reqHeight) {
+        final int height = options.outHeight;
+        final int width = options.outWidth;
+        int inSampleSize = 1;
+
+        if (height > reqHeight || width > reqWidth) {
+            final int halfHeight = height / 2;
+            final int halfWidth = width / 2;
+            while ((halfHeight / inSampleSize) >= reqHeight && (halfWidth / inSampleSize) >= reqWidth) {
+                inSampleSize *= 2;
+            }
+        }
+        return inSampleSize;
+    }
+
 
     private String encriptar(String texto) throws Exception {
         String secret = "MyDifficultPassw";
@@ -261,6 +399,7 @@ public class MainActivity extends AppCompatActivity {
     private void crearInformacionUsuarioBD(SQLiteDatabase db, FirebaseUser usuario, String direccion, String telefono, String imagenObtenida){
 
         database.insertarUsuario(db, usuario.getUid(), usuario.getDisplayName(), usuario.getEmail(), null, null, direccion, telefono, imagenObtenida);
+
     }
 
     private void cargarInformacionUsuario(FirebaseUser usuario, AccessToken accessToken) {

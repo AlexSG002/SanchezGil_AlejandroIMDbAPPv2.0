@@ -15,10 +15,12 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.firebase.firestore.FirebaseFirestore;
 import com.pmdm.snchezgil_alejandroimdbapp.MovieDetailsActivity;
 import com.pmdm.snchezgil_alejandroimdbapp.R;
 import com.pmdm.snchezgil_alejandroimdbapp.database.IMDbDatabaseHelper;
 import com.pmdm.snchezgil_alejandroimdbapp.models.Movie;
+import com.pmdm.snchezgil_alejandroimdbapp.sync.FavoritesSync;
 
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -36,6 +38,7 @@ public class MovieAdapter extends RecyclerView.Adapter<MovieAdapter.ViewHolder>{
     private String idUsuario;
     private IMDbDatabaseHelper databaseHelper;
     private boolean favoritos;
+    private FavoritesSync favSync;
 
     public MovieAdapter(Context context, List<Movie> movies, String idUsuario, IMDbDatabaseHelper databaseHelper, boolean favoritos){
         this.context = context;
@@ -43,7 +46,7 @@ public class MovieAdapter extends RecyclerView.Adapter<MovieAdapter.ViewHolder>{
         this.idUsuario = idUsuario;
         this.databaseHelper = databaseHelper;
         this.favoritos = favoritos;
-
+        favSync = new FavoritesSync(FirebaseFirestore.getInstance(), databaseHelper);
     }
 
 
@@ -128,7 +131,7 @@ public class MovieAdapter extends RecyclerView.Adapter<MovieAdapter.ViewHolder>{
         SQLiteDatabase dbWrite = databaseHelper.getWritableDatabase();
         long result = databaseHelper.insertarFavorito(dbWrite, idUsuario, movie.getId(), movie.getTitle(), movie.getDescripcion(), movie.getFecha(), movie.getRank(),movie.getRating() , movie.getImageUrl());
         dbWrite.close();
-
+        favSync.subirFavoritosANube();
         if (result != -1) {
             mainHandler.post(() ->
                     Toast.makeText(context, "Se ha agregado a favoritos: " + movie.getTitle(), Toast.LENGTH_SHORT).show()
@@ -148,8 +151,9 @@ public class MovieAdapter extends RecyclerView.Adapter<MovieAdapter.ViewHolder>{
                 new String[]{idUsuario, movie.getId()}
         );
         dbWrite.close();
-
         if (rowsDeleted > 0) {
+            favSync.eliminarFavoritoDeNube(idUsuario, movie.getId());
+
             mainHandler.post(() -> {
                 Toast.makeText(context, "Eliminado de favoritos: " + movie.getTitle(), Toast.LENGTH_SHORT).show();
                 movies.remove(position);

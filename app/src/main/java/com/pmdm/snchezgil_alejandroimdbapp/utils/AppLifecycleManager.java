@@ -26,6 +26,7 @@ public class AppLifecycleManager implements Application.ActivityLifecycleCallbac
     private boolean isInBackground = false;
     private int activityReferences = 0;
     private boolean isActivityChangingConfigurations = false;
+    public static boolean isLogging = false;
     private Context appContext;
 
     public AppLifecycleManager(Context context) {
@@ -74,10 +75,16 @@ public class AppLifecycleManager implements Application.ActivityLifecycleCallbac
 
     @Override
     public void onActivityDestroyed(Activity activity) {
+        if (activity.isFinishing()) {
+            FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+            if (user != null) {
+                registerUserLogout(user);
+            }
+        }
         isActivityChangingConfigurations = activity.isChangingConfigurations();
     }
 
-    // Este método es parte de ComponentCallbacks2
+
     @Override
     public void onTrimMemory(int level) {
         if (level == TRIM_MEMORY_UI_HIDDEN) {
@@ -90,11 +97,22 @@ public class AppLifecycleManager implements Application.ActivityLifecycleCallbac
     }
 
     private void registerUserLogout(FirebaseUser user) {
+        if(isLogging){
+            isLogging = false;
+            return;
+        }
+
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         String formattedDate = sdf.format(System.currentTimeMillis());
         String logoutLog = formattedDate;
         IMDbDatabaseHelper dbHelper = new IMDbDatabaseHelper(appContext);
         dbHelper.actualizarLogoutRegistro(user.getUid(), logoutLog);
+
+        SharedPreferences preferences = appContext.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = preferences.edit();
+        editor.putString("last_logout", logoutLog);
+        editor.apply();
+
         Log.d("AppLifecycleManager", "Logout registrado para el usuario: " + user.getEmail());
     }
 

@@ -73,7 +73,7 @@ public class HomeFragment extends Fragment {
 
         GridLayoutManager layoutManager = new GridLayoutManager(getContext(), 2);
         binding.recyclerView.setLayoutManager(layoutManager);
-
+        apiKeyManager = new RapidApiKeyManager();
         FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
         if (currentUser != null) {
             String idUsuario = currentUser.getUid();
@@ -82,7 +82,6 @@ public class HomeFragment extends Fragment {
             Toast.makeText(getContext(), "Usuario no autenticado.", Toast.LENGTH_SHORT).show();
         }
 
-        apiKeyManager = new RapidApiKeyManager();
 
         return root;
     }

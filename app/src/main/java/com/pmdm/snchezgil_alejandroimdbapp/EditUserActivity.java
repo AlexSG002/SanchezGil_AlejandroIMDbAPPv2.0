@@ -28,6 +28,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 
+import com.google.firebase.firestore.FirebaseFirestore;
 import com.hbb20.CountryCodePicker;
 import com.pmdm.snchezgil_alejandroimdbapp.database.IMDbDatabaseHelper;
 
@@ -39,6 +40,8 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
@@ -89,11 +92,12 @@ public class EditUserActivity extends AppCompatActivity {
         if (getIntent().hasExtra("imagenUri")) {
             String fotoPath = getIntent().getStringExtra("imagenUri");
             if (fotoPath != null && !fotoPath.isEmpty()) {
-                ImageView imagen = findViewById(R.id.imageView3);
                 Uri uri = Uri.fromFile(new File(fotoPath));
-                imagen.setImageURI(uri);
+                Bitmap bitmap = decodeSampledBitmapFromFile(fotoPath, 300, 300);
+                imagen.setImageBitmap(bitmap);
             }
         }
+
 
         obtenerPermisosLocalizacionLauncher = registerForActivityResult(
                 new ActivityResultContracts.RequestMultiplePermissions(),
@@ -281,6 +285,36 @@ public class EditUserActivity extends AppCompatActivity {
     }
 
 
+    private Bitmap decodeSampledBitmapFromFile(String filePath, int reqWidth, int reqHeight) {
+        // Primero, decodifica solo las dimensiones
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(filePath, options);
+
+        // Calcula el factor de escalado
+        options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight);
+
+        // Decodifica el bitmap ya escalado
+        options.inJustDecodeBounds = false;
+        return BitmapFactory.decodeFile(filePath, options);
+    }
+
+    private int calculateInSampleSize(BitmapFactory.Options options, int reqWidth, int reqHeight) {
+        final int height = options.outHeight;
+        final int width = options.outWidth;
+        int inSampleSize = 1;
+
+        if (height > reqHeight || width > reqWidth) {
+            final int halfHeight = height / 2;
+            final int halfWidth = width / 2;
+            while ((halfHeight / inSampleSize) >= reqHeight && (halfWidth / inSampleSize) >= reqWidth) {
+                inSampleSize *= 2;
+            }
+        }
+        return inSampleSize;
+    }
+
+
     private void modificarUsuario(String telefonoCompleto) {
         IMDbDatabaseHelper database = new IMDbDatabaseHelper(this);
         SQLiteDatabase db = database.getWritableDatabase();
@@ -319,11 +353,37 @@ public class EditUserActivity extends AppCompatActivity {
 
         if (filasActualizadas > 0) {
             Toast.makeText(this, "Datos actualizados correctamente", Toast.LENGTH_SHORT).show();
+            actualizarUsuariosNube(idUsuario, valores);
         } else {
             Toast.makeText(this, "Error al actualizar los datos", Toast.LENGTH_SHORT).show();
         }
 
         db.close();
+    }
+
+    private void actualizarUsuariosNube(String idUsuario, ContentValues valores) {
+        Map<String, Object> data = new HashMap<>();
+        if (valores.containsKey("nombre")) {
+            data.put("nombre", valores.getAsString("nombre"));
+        }
+        if (valores.containsKey("telefono")) {
+            data.put("telefono", valores.getAsString("telefono"));
+        }
+        if (valores.containsKey("direccion")) {
+            data.put("direccion", valores.getAsString("direccion"));
+        }
+        if (valores.containsKey("foto")) {
+            data.put("foto", valores.getAsString("foto"));
+        }
+
+
+        FirebaseFirestore firestore = FirebaseFirestore.getInstance();
+        firestore.collection("usuarios").document(idUsuario)
+                .update(data)
+                .addOnSuccessListener(aVoid ->
+                        Log.d("Firestore", "Usuario " + idUsuario + " actualizado en la nube"))
+                .addOnFailureListener(e ->
+                        Log.e("Firestore", "Error actualizando usuario " + idUsuario, e));
     }
 
     private String encriptar(String texto) throws Exception {
@@ -353,10 +413,28 @@ public class EditUserActivity extends AppCompatActivity {
                     @Override
                     public void onActivityResult(ActivityResult result) {
                         if (result.getResultCode() == RESULT_OK) {
-                            imagen.setImageURI(imageUri);
+                            if (imageUri != null) {
+                                try {
+                                    // Usar ContentResolver para obtener el InputStream desde la URI
+                                    InputStream inputStream = getContentResolver().openInputStream(imageUri);
+                                    if (inputStream != null) {
+                                        Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
+                                        Bitmap scaledBitmap = Bitmap.createScaledBitmap(bitmap, 300, 300, true);
+                                        imagen.setImageBitmap(scaledBitmap);
+                                    } else {
+                                        Toast.makeText(EditUserActivity.this, "No se pudo abrir la imagen.", Toast.LENGTH_SHORT).show();
+                                    }
+                                } catch (IOException e) {
+                                    e.printStackTrace();
+                                    Toast.makeText(EditUserActivity.this, "Error al acceder al archivo de la imagen.", Toast.LENGTH_SHORT).show();
+                                }
+                            } else {
+                                Toast.makeText(EditUserActivity.this, "Error: imageUri es nulo", Toast.LENGTH_SHORT).show();
+                            }
                         }
                     }
                 });
+
 
         galeriaLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
@@ -446,12 +524,17 @@ public class EditUserActivity extends AppCompatActivity {
             try {
                 File fotoArchivo = crearArchivoImagen();
                 if (fotoArchivo != null) {
-                    imageUri = FileProvider.getUriForFile(this,
+                    Log.d("EditUserActivity", "Ruta de la imagen: " + fotoArchivo.getAbsolutePath());
+                    imageUri = FileProvider.getUriForFile(
+                            this,
                             getApplicationContext().getPackageName() + ".provider",
                             fotoArchivo);
                     intent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri);
                     camaraLauncher.launch(intent);
+                } else {
+                    Toast.makeText(this, "Error al crear el archivo de imagen.", Toast.LENGTH_SHORT).show();
                 }
+
             } catch (IOException e) {
                 e.printStackTrace();
                 Toast.makeText(this, "Error al crear el archivo de imagen.", Toast.LENGTH_SHORT).show();
