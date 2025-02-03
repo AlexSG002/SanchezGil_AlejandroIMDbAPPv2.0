@@ -25,6 +25,7 @@ import com.pmdm.snchezgil_alejandroimdbapp.adapter.MovieAdapter;
 import com.pmdm.snchezgil_alejandroimdbapp.database.IMDbDatabaseHelper;
 import com.pmdm.snchezgil_alejandroimdbapp.databinding.FragmentHomeBinding;
 import com.pmdm.snchezgil_alejandroimdbapp.models.Movie;
+import com.pmdm.snchezgil_alejandroimdbapp.utils.RapidApiKeyManager;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -48,18 +49,13 @@ public class HomeFragment extends Fragment {
     private Handler mainHandler;
     //Obtenemos el id de usuario al que se lo pasaremos al MovieAdapter para identificar al usuario al añadir sus favoritos.
     private static final String BASE_URL = "https://imdb-com.p.rapidapi.com/";
-    //private static final String API_KEY = "200ca2873dmsh3c28ce355613a89p1dd78cjsndb8f2f9c0b09";
-    //private static final String API_KEY = "ab93ab0e94mshebd8e2eb069c3e5p12c6b7jsn40f5cdaf18f8";
-    //private static final String API_KEY = "8387dd50bamsh70639397777c48dp1f8dc5jsn8138e37a8f4f";
-    private static final String API_KEY = "7b9666c90cmsh018cf98d92659e1p1f7b9ejsn03cf7efd6bab"; //Esta no va, pero no quiero gastar usos de la api de prueba.
-    //private static final String API_KEY = "10d6f51c11msh656b9bf6c5f2dafp186d10jsndf3eedfbfec3";
-    //private static final String API_KEY = "3d76c0302dmsh50ef648aa3bd887p155fa9jsn0a10d29a1ced";
     private static final String HOST = "imdb-com.p.rapidapi.com";
     private static final String ENDPOINT_TOP10 = "title/get-top-meter?topMeterTitlesType=ALL&limit=10";
     private static final String ENDPOINT_DESCRIPCION = "title/get-overview?tconst=";
     private static List<Movie> peliculasCargadas = new ArrayList<>();
     private IMDbDatabaseHelper database;
     private boolean favoritos = false;
+    private RapidApiKeyManager apiKeyManager;
 
     //Al crearse la vista cargamos las películas.
     @Override
@@ -86,6 +82,7 @@ public class HomeFragment extends Fragment {
             Toast.makeText(getContext(), "Usuario no autenticado.", Toast.LENGTH_SHORT).show();
         }
 
+        apiKeyManager = new RapidApiKeyManager();
 
         return root;
     }
@@ -97,13 +94,14 @@ public class HomeFragment extends Fragment {
             for(Movie movie : peliculasCargadas) {
                 //Hacemos la llamada a la api con el endpoint y el id de la película, para obtener su descripción y rating.
                 try {
+                    String apiKey = apiKeyManager.getCurrentKey();
                     String urlString = BASE_URL + ENDPOINT_DESCRIPCION+movie.getId();
                     //Utilizando HttpURL nos conectamos y establecemos el método "GET" para obtener los datos
                     //Establecemos como propiedades la api y el host.
                     URL url = new URL(urlString);
                     HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                     conn.setRequestMethod("GET");
-                    conn.setRequestProperty("x-rapidapi-key", API_KEY);
+                    conn.setRequestProperty("x-rapidapi-key", apiKey);
                     conn.setRequestProperty("x-rapidapi-host", HOST);
                     conn.setConnectTimeout(15000);
                     conn.setReadTimeout(10000);
@@ -162,87 +160,86 @@ public class HomeFragment extends Fragment {
             }
         });
     }
-    //Método para cargar el top de peliculas, en esencia igual que el anterior.
+
     private void cargarTopMovies(String idUsuario) {
         executorService.execute(() -> {
-            try {
-                String urlString = BASE_URL + ENDPOINT_TOP10;
-                URL url = new URL(urlString);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("GET");
-                conn.setRequestProperty("x-rapidapi-key", API_KEY);
-                conn.setRequestProperty("x-rapidapi-host", HOST);
-                conn.setConnectTimeout(15000);
-                conn.setReadTimeout(10000);
-                conn.connect();
+            boolean intentoExitoso = false;
 
-                int codRespuesta = conn.getResponseCode();
-                if (codRespuesta == HttpURLConnection.HTTP_OK) {
-                    String respuesta = convertirAString(conn.getInputStream());
-                    conn.disconnect();
-                    //Código para comprobar el json.
-                    Log.d("HomeFragment", "Respuesta: " + respuesta);
+            while (!intentoExitoso) {
+                try {
+                    String apiKey = apiKeyManager.getCurrentKey();
+                    String urlString = BASE_URL + ENDPOINT_TOP10;
+                    URL url = new URL(urlString);
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("GET");
+                    conn.setRequestProperty("x-rapidapi-key", apiKey);
+                    conn.setRequestProperty("x-rapidapi-host", HOST);
+                    conn.setConnectTimeout(15000);
+                    conn.setReadTimeout(10000);
+                    conn.connect();
+                    int codRespuesta = conn.getResponseCode();
+                    if (codRespuesta == HttpURLConnection.HTTP_OK) {
+                        String respuesta = convertirAString(conn.getInputStream());
+                        conn.disconnect();
+                        Gson gson = new Gson();
+                        JsonObject jsonObject = gson.fromJson(respuesta, JsonObject.class);
+                        JsonObject dataObject = jsonObject.getAsJsonObject("data");
+                        JsonObject topMeterTitlesObject = dataObject.getAsJsonObject("topMeterTitles");
+                        JsonArray edgesArray = topMeterTitlesObject.getAsJsonArray("edges");
 
-                    Gson gson = new Gson();
-                    JsonObject jsonObject = gson.fromJson(respuesta, JsonObject.class);
-                    JsonObject dataObject = jsonObject.getAsJsonObject("data");
-                    JsonObject topMeterTitlesObject = dataObject.getAsJsonObject("topMeterTitles");
-                    JsonArray edgesArray = topMeterTitlesObject.getAsJsonArray("edges");
+                        List<Movie> movies = new ArrayList<>();
+                        for (JsonElement edgeElement : edgesArray) {
+                            JsonObject edgeObject = edgeElement.getAsJsonObject();
+                            JsonObject nodeObject = edgeObject.getAsJsonObject("node");
+                            String id = nodeObject.get("id").getAsString();
+                            String rank = nodeObject.getAsJsonObject("meterRanking").get("currentRank").getAsString();
+                            String titulo = nodeObject.getAsJsonObject("titleText").get("text").getAsString();
+                            String imageUrl = nodeObject.getAsJsonObject("primaryImage").get("url").getAsString();
+                            String mes = nodeObject.getAsJsonObject("releaseDate").get("month").getAsString();
+                            String dia = nodeObject.getAsJsonObject("releaseDate").get("day").getAsString();
+                            String year = nodeObject.getAsJsonObject("releaseDate").get("year").getAsString();
 
-                    List<Movie> movies = new ArrayList<>();
-
-                    for (JsonElement edgeElement : edgesArray) {
-                        JsonObject edgeObject = edgeElement.getAsJsonObject();
-                        JsonObject nodeObject = edgeObject.getAsJsonObject("node");
-
-                        String id = nodeObject.get("id").getAsString();
-                        String rank = nodeObject.getAsJsonObject("meterRanking").get("currentRank").getAsString();
-                        String titulo = nodeObject.getAsJsonObject("titleText").get("text").getAsString();
-                        String imageUrl = nodeObject.getAsJsonObject("primaryImage").get("url").getAsString();
-                        String mes = nodeObject.getAsJsonObject("releaseDate").get("month").getAsString();
-                        String dia = nodeObject.getAsJsonObject("releaseDate").get("day").getAsString();
-                        String year = nodeObject.getAsJsonObject("releaseDate").get("year").getAsString();
-
-                        Movie movie = new Movie();
-                        movie.setImageUrl(imageUrl);
-                        movie.setTitle(titulo);
-                        movie.setRank(rank);
-                        movie.setId(id);
-                        movie.setFecha(dia+"-"+mes+"-"+year);
-                        movies.add(movie);
-                        //Guardo las peliculas cargadas en el array declarado de inicio.
+                            Movie movie = new Movie();
+                            movie.setImageUrl(imageUrl);
+                            movie.setTitle(titulo);
+                            movie.setRank(rank);
+                            movie.setId(id);
+                            movie.setFecha(dia + "-" + mes + "-" + year);
+                            movies.add(movie);
+                        }
+                        //Guarda las películas cargadas
                         peliculasCargadas = movies;
 
+                        // Actualiza la UI en el hilo principal
+                        mainHandler.post(() -> {
+                            if (!movies.isEmpty()) {
+                                MovieAdapter adapter = new MovieAdapter(getContext(), movies, idUsuario, database, favoritos);
+                                binding.recyclerView.setAdapter(adapter);
+                                cargarDescripciones();
+                            } else {
+                                Toast.makeText(getContext(), "No se pudieron obtener las películas", Toast.LENGTH_SHORT).show();
+                            }
+                        });
+
+                        intentoExitoso = true;
+                    } else if (codRespuesta == 429) {
+                        Log.e("HomeFragment", "Límite alcanzado. Cambiando clave...");
+                        apiKeyManager.switchToNextKey();
+                    } else {
+                        conn.disconnect();
+                        Log.e("HomeFragment", "Error en la respuesta: " + codRespuesta);
+                        intentoExitoso = true;
                     }
 
-                    //Declaramos una variable final de peliculas cargadas y la igualamos a la lista movies a la que hemos igualado también antes la lista de peliculas cargadas.
-                    final List<Movie> finalMovies = movies;
-                    //Para poder comprobar que la lista no sea nula cuando se llama al adaptador de movies.
-                    mainHandler.post(() -> {
-                        if (finalMovies != null && !finalMovies.isEmpty()) {
-                            MovieAdapter adapter = new MovieAdapter(getContext(), finalMovies, idUsuario, database, favoritos);
-                            binding.recyclerView.setAdapter(adapter);
-
-                            cargarDescripciones();
-                        } else {
-                            Toast.makeText(getContext(), "No se pudieron obtener las películas", Toast.LENGTH_SHORT).show();
-                        }
-                    });
-                } else {
-                    conn.disconnect();
-                    mainHandler.post(() ->
-                            Toast.makeText(getContext(), "Error en la petición: " + codRespuesta, Toast.LENGTH_SHORT).show()
-                    );
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    mainHandler.post(() -> Toast.makeText(getContext(), "Error al cargar las películas: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                    intentoExitoso = true;
                 }
-
-            } catch (Exception e) {
-                e.printStackTrace();
-                mainHandler.post(() ->
-                        Toast.makeText(getContext(), "Error al cargar las películas: " + e.getMessage(), Toast.LENGTH_SHORT).show()
-                );
             }
         });
     }
+
 
     //Método para convertir el stream de entrada en strings como lo vimos el executor y añadiendo el paso a Strings
     private String convertirAString(InputStream is) throws IOException {
