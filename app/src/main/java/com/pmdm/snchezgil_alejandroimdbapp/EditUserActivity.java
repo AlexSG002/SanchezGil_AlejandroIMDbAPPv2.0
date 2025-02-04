@@ -96,7 +96,6 @@ public class EditUserActivity extends AppCompatActivity {
             String fotoPath = getIntent().getStringExtra("imagenUri");
             if (fotoPath != null && !fotoPath.isEmpty()) {
                 Uri uri = Uri.fromFile(new File(fotoPath));
-                //Decodificamos la imagen para establecerla en el imageView y la escalamos por si es muy grande.
                 Bitmap bitmap = decodificarBitMap(fotoPath, 300, 300);
                 imagen.setImageBitmap(bitmap);
             }

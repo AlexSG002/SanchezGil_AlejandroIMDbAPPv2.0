@@ -1,5 +1,6 @@
 package com.pmdm.snchezgil_alejandroimdbapp;
 
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -38,6 +39,7 @@ import com.facebook.GraphRequest;
 import com.facebook.GraphResponse;
 import com.facebook.login.LoginManager;
 import com.google.android.gms.auth.api.signin.GoogleSignIn;
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.gms.auth.api.signin.GoogleSignInClient;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.tasks.OnCompleteListener;
@@ -130,6 +132,18 @@ public class MainActivity extends AppCompatActivity {
         textViewNombre = headerView.findViewById(R.id.nombre);
         textViewEmail = headerView.findViewById(R.id.email);
         imageViewImagen = headerView.findViewById(R.id.imageView);
+
+        GoogleSignInAccount account = GoogleSignIn.getLastSignedInAccount(this);
+        if (account != null) {
+            Uri photoUrl = account.getPhotoUrl();
+            if (photoUrl != null) {
+                String imageUrl = photoUrl.toString();
+                // Guardamos la URL en la base de datos local y en Firestore.
+                guardarImagenUsuario(usuario.getUid(), imageUrl);
+                // Cargamos la imagen en el ImageView.
+                cargarImagen(imageUrl, imageViewImagen);
+            }
+        }
 
         //Botón de logout para cerrar sesión.
         Button LogoutButton = headerView.findViewById(R.id.buttonLogout);
@@ -380,7 +394,7 @@ public class MainActivity extends AppCompatActivity {
                                         if (data != null) {
                                             JSONObject pictureData = data.getJSONObject("data");
                                             String imageUrl = pictureData.getString("url");
-
+                                            guardarImagenUsuario(usuario.getUid(), imageUrl);
                                             cargarImagen(imageUrl, imageViewImagen);
                                         }
                                     } catch (JSONException e) {
@@ -409,6 +423,25 @@ public class MainActivity extends AppCompatActivity {
         } else {
             volverALogin();
         }
+    }
+
+    private void guardarImagenUsuario(String userId, String imageUrl) {
+        // Guardar en SQLite
+        IMDbDatabaseHelper dbHelper = new IMDbDatabaseHelper(this);
+        SQLiteDatabase db = dbHelper.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put("foto", imageUrl);
+        db.update("t_usuarios", values, "idUsuario = ?", new String[]{userId});
+        db.close();
+
+        // Guardar en Firestore
+        FirebaseFirestore firestore = FirebaseFirestore.getInstance();
+        Map<String, Object> data = new HashMap<>();
+        data.put("foto", imageUrl);
+        firestore.collection("usuarios").document(userId)
+                .set(data, SetOptions.merge())
+                .addOnSuccessListener(aVoid -> Log.d("Firestore", "Foto de perfil actualizada en la nube"))
+                .addOnFailureListener(e -> Log.e("Firestore", "Error actualizando foto de perfil", e));
     }
 
     //Método que configura el editUserLauncher para establecer los datos que debemos pasar y obtener en el intent.
