@@ -90,7 +90,6 @@ public class MainActivity extends AppCompatActivity {
     private FirebaseAuth mAuth;
     private IMDbDatabaseHelper database;
     private ActivityResultLauncher<Intent> editUserLauncher;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -104,6 +103,7 @@ public class MainActivity extends AppCompatActivity {
         mAuth = FirebaseAuth.getInstance();
         //Obtenemos de nuevo el usuario.
         FirebaseUser usuario = mAuth.getCurrentUser();
+
         //Declaramos e inicializamos un executor y un Handler para ejecutar los métodos en el hilo principal.
         executorService = Executors.newSingleThreadExecutor();
         mainHandler = new Handler(Looper.getMainLooper());
@@ -132,16 +132,29 @@ public class MainActivity extends AppCompatActivity {
         textViewNombre = headerView.findViewById(R.id.nombre);
         textViewEmail = headerView.findViewById(R.id.email);
         imageViewImagen = headerView.findViewById(R.id.imageView);
-
+        SharedPreferences preferences = getSharedPreferences(usuario.getUid()+"user_prefs", Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = preferences.edit();
+        if(!preferences.contains("imagenCargada")){
+            editor.putBoolean("imagenCargada",false);
+            editor.apply();
+        }
+        editor.apply();
+        boolean imagenCargada = preferences.getBoolean("imagenCargada", false);
         GoogleSignInAccount account = GoogleSignIn.getLastSignedInAccount(this);
         if (account != null) {
             Uri photoUrl = account.getPhotoUrl();
             if (photoUrl != null) {
-                String imageUrl = photoUrl.toString();
-                // Guardamos la URL en la base de datos local y en Firestore.
-                guardarImagenUsuario(usuario.getUid(), imageUrl);
-                // Cargamos la imagen en el ImageView.
-                cargarImagen(imageUrl, imageViewImagen);
+                if(!imagenCargada) {
+                    String imageUrl = photoUrl.toString();
+                    // Guardamos la URL en la base de datos local y en Firestore.
+                    guardarImagenUsuario(usuario.getUid(), imageUrl);
+                    // Cargamos la imagen en el ImageView.
+                    cargarImagen(imageUrl, imageViewImagen);
+                    editor.putBoolean("imagenCargada", true);
+                    editor.apply();
+                }else{
+                    cargarImagenDesdeBD(usuario.getUid(), imageViewImagen);
+                }
             }
         }
 
@@ -220,6 +233,34 @@ public class MainActivity extends AppCompatActivity {
         });
 
     }
+
+    private void cargarImagenDesdeBD(String userId, ImageView imageView) {
+        SQLiteDatabase db = database.getReadableDatabase();
+        String sql = "SELECT foto FROM t_usuarios WHERE idUsuario = ?";
+        Cursor cursor = db.rawQuery(sql, new String[]{userId});
+
+        if (cursor.moveToFirst()) {
+            int colFoto = cursor.getColumnIndex("foto");
+            String foto = cursor.getString(colFoto);
+
+            if (foto != null && !foto.isEmpty()) {
+                File imageFile = new File(foto);
+                if (imageFile.exists()) {
+                    Bitmap scaledBitmap = decodificarBitMap(imageFile.getAbsolutePath(), 300, 300);
+                    imageView.setImageBitmap(scaledBitmap);
+                } else {
+                    Log.e("MainActivity", "Archivo de imagen no encontrado: " + foto);
+                }
+            } else {
+                Log.d("MainActivity", "No se proporcionó una foto para el usuario.");
+            }
+        } else {
+            Log.e("MainActivity", "Usuario no encontrado en la base de datos.");
+        }
+        cursor.close();
+    }
+
+
     //Método para actualizar los datos de logs.
     private void actualizarDatos(FirebaseUser usuarioActual) {
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
@@ -382,6 +423,14 @@ public class MainActivity extends AppCompatActivity {
                 String emailCuenta = usuario.getEmail();
                 Uri imagenCuenta = usuario.getPhotoUrl();
                 if (accessToken != null) {
+                    SharedPreferences preferences = getSharedPreferences(usuario.getUid()+"user_prefs", Context.MODE_PRIVATE);
+                    SharedPreferences.Editor editor = preferences.edit();
+                    if(!preferences.contains("imagenCargada")){
+                        editor.putBoolean("imagenCargada",false);
+                        editor.apply();
+                    }
+                    editor.apply();
+                    boolean imagenCargada = preferences.getBoolean("imagenCargada", false);
                     textViewNombre.setText(nombreCuenta);
                     textViewEmail.setText("Conectado con Facebook");
                     GraphRequest request = GraphRequest.newGraphPathRequest(accessToken,
@@ -394,8 +443,16 @@ public class MainActivity extends AppCompatActivity {
                                         if (data != null) {
                                             JSONObject pictureData = data.getJSONObject("data");
                                             String imageUrl = pictureData.getString("url");
-                                            guardarImagenUsuario(usuario.getUid(), imageUrl);
-                                            cargarImagen(imageUrl, imageViewImagen);
+                                            if (!imagenCargada) {
+                                                guardarImagenUsuario(usuario.getUid(), imageUrl);
+                                                cargarImagen(imageUrl, imageViewImagen);
+
+                                                // Actualizamos el estado a "imagenCargada"
+                                                editor.putBoolean("imagenCargada", true);
+                                                editor.apply();
+                                            } else {
+                                                cargarImagenDesdeBD(usuario.getUid(), imageViewImagen);
+                                            }
                                         }
                                     } catch (JSONException e) {
                                         e.printStackTrace();
@@ -463,13 +520,44 @@ public class MainActivity extends AppCompatActivity {
 
                             if (fotoActualizada != null) {
                                 Uri uri = Uri.parse(fotoActualizada);
-                                imageViewImagen.setImageURI(uri);
+                                try {
+                                    Bitmap bitmap = decodificarBitMapDesdeUri(uri, 300, 300);
+                                    imageViewImagen.setImageBitmap(bitmap);
+                                } catch (IOException e) {
+                                    throw new RuntimeException(e);
+                                }
+
 
                             }
                         }
                     }
                 });
     }
+
+    private Bitmap decodificarBitMapDesdeUri(Uri uri, int reqWidth, int reqHeight) throws IOException {
+        InputStream inputStream = getContentResolver().openInputStream(uri);
+        if (inputStream == null) {
+            throw new IOException("No se pudo abrir el InputStream de la URI: " + uri);
+        }
+
+        // Decodificar solo las dimensiones
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inJustDecodeBounds = true;
+        BitmapFactory.decodeStream(inputStream, null, options);
+        inputStream.close();
+
+        // Calcular el factor de escalado
+        options.inSampleSize = reescalado(options, reqWidth, reqHeight);
+
+        // Decodificar la imagen con el factor de escalado
+        options.inJustDecodeBounds = false;
+        inputStream = getContentResolver().openInputStream(uri);
+        Bitmap bitmap = BitmapFactory.decodeStream(inputStream, null, options);
+        inputStream.close();
+
+        return bitmap;
+    }
+
     //Método del menú.
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {

@@ -222,6 +222,7 @@ public class EditUserActivity extends AppCompatActivity {
         });
 
     }
+
     //Método que comprueba si tenemos los permisos de ubicación concedidos.
     private boolean tienePermisosUbicacion() {
         return ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
