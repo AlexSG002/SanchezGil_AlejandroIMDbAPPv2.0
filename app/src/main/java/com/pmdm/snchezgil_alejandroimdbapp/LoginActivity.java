@@ -195,7 +195,7 @@ public class LoginActivity extends AppCompatActivity {
                             String email = exception.getEmail();
                             Toast.makeText(LoginActivity.this, "Cuenta ya en uso, porfavor inicia sesión con el método seleccionado.", Toast.LENGTH_SHORT).show();
                         } else {
-                            Toast.makeText(LoginActivity.this, "Registro fallido", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(LoginActivity.this, "Registro fallido, revisa si la contraseña que has introducido tiene más de 6 caracteres.", Toast.LENGTH_SHORT).show();
                         }
                     }
                 });
