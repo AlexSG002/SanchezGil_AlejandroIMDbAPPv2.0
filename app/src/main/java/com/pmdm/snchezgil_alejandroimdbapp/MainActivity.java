@@ -444,7 +444,7 @@ public class MainActivity extends AppCompatActivity {
                 .addOnFailureListener(e -> Log.e("Firestore", "Error actualizando foto de perfil", e));
     }
 
-    //Método que configura el editUserLauncher para establecer los datos que debemos pasar y obtener en el intent.
+    //Método que configura el editUserLauncher para establecer los datos que debemos pasar y obtener del intent.
     private void configurarEditUserLauncher() {
         editUserLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
