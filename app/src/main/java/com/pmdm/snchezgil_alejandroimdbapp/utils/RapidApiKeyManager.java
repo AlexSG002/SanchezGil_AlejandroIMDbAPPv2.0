@@ -17,6 +17,7 @@ public class RapidApiKeyManager {
         apiKeys.add("10d6f51c11msh656b9bf6c5f2dafp186d10jsndf3eedfbfec3");
         apiKeys.add("3d76c0302dmsh50ef648aa3bd887p155fa9jsn0a10d29a1ced");
         apiKeys.add("7a9dfdb6e1msh91c95433ef26fb1p135612jsnf136cd9fd4bf");
+        apiKeys.add("66d110acfbmsh6f1ad420857e3bcp1c2d64jsncc4ae69c1479");
         currentIndex = 0;
     }
     //Método para obtener la key.

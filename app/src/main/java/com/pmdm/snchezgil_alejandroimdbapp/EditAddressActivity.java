@@ -78,7 +78,7 @@ public class EditAddressActivity extends AppCompatActivity {
     //Método para mostrar el mapa estático que simplemente obtiene del enlace la imagen según la latitud y longitud.
     private void mostrarMapaEstatico(double lat, double lng) {
         String url = "https://maps.googleapis.com/maps/api/staticmap?center=" + lat + "," + lng +
-                "&zoom=15&size=600x300&markers=color:red%7C" + lat + "," + lng +
+                "&zoom=15&size=600x600&markers=color:red%7C" + lat + "," + lng +
                 "&key=AIzaSyAER7D-uvYpBOG3wZjz9z3AeGulqAci-OU";
         //Método para descargar la imagen en un hilo ya que es una tarea asíncrona y establecerlo en el imageView.
         new Thread(new Runnable() {

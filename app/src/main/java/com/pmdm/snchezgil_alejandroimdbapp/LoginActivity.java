@@ -77,22 +77,6 @@ public class LoginActivity extends AppCompatActivity {
         //Inicializamos la variable de GoogleSignInClient utilizando las opciones de inicio de sesión por defecto.
         gClient = GoogleSignIn.getClient(this, gOptions);
         //Declaramos e inicializamos la variable usuarioActual a el usuario que recogemos con la variable de Firebase.
-        FirebaseUser usuarioActual = mAuth.getCurrentUser();
-        //Comprobamos que el usuario no sea nulo y navegamos al main.
-        if (usuarioActual != null) {
-            UsersSync usersSync = new UsersSync(FirebaseFirestore.getInstance(), new IMDbDatabaseHelper(getApplicationContext()));
-            usersSync.descargarUsuariosNubeALocal(new UsersSync.CloudSyncCallback() {
-                @Override
-                public void onSuccess() {
-                    irAMain();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    Log.e("LoginActivity", "Error sincronizando datos desde la nube: " + e.getMessage());
-                }
-            });
-        }
 
         //Launcher para lanzar la pestaña de selección de cuenta de Google.
         activityResultLauncherGoogleSignIn = registerForActivityResult(
@@ -294,7 +278,18 @@ public class LoginActivity extends AppCompatActivity {
         super.onStart();
         FirebaseUser usuarioActual = mAuth.getCurrentUser();
         if (usuarioActual != null) {
-            irAMain();
+            UsersSync usersSync = new UsersSync(FirebaseFirestore.getInstance(), new IMDbDatabaseHelper(getApplicationContext()));
+            usersSync.descargarUsuariosNubeALocal(new UsersSync.CloudSyncCallback() {
+                @Override
+                public void onSuccess() {
+                    irAMain();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    Log.e("LoginActivity", "Error sincronizando datos desde la nube: " + e.getMessage());
+                }
+            });
         }
     }
     //Método que maneja el inicio de sesión con Facebook.
