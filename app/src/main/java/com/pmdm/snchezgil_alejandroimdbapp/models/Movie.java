@@ -2,8 +2,20 @@ package com.pmdm.snchezgil_alejandroimdbapp.models;
 
 import android.os.Parcel;
 import android.os.Parcelable;
+
 //Clase movie de solo datos y parcelable.
 public class Movie implements Parcelable {
+    public static final Creator<Movie> CREATOR = new Creator<Movie>() {
+        @Override
+        public Movie createFromParcel(Parcel in) {
+            return new Movie(in);
+        }
+
+        @Override
+        public Movie[] newArray(int size) {
+            return new Movie[size];
+        }
+    };
     private String imageUrl;
     private String title;
     private String rank;
@@ -27,32 +39,45 @@ public class Movie implements Parcelable {
         fecha = in.readString();
     }
 
-    public static final Creator<Movie> CREATOR = new Creator<Movie>() {
-        @Override
-        public Movie createFromParcel(Parcel in) {
-            return new Movie(in);
-        }
+    public String getImageUrl() {
+        return imageUrl;
+    }
 
-        @Override
-        public Movie[] newArray(int size) {
-            return new Movie[size];
-        }
-    };
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
+    }
 
-    public String getImageUrl() {return imageUrl;}
-    public void setImageUrl(String imageUrl) {this.imageUrl = imageUrl;}
+    public String getTitle() {
+        return title;
+    }
 
-    public String getTitle() { return title; }
-    public void setTitle(String title) { this.title = title; }
+    public void setTitle(String title) {
+        this.title = title;
+    }
 
-    public String getRank() {return rank;}
-    public void setRank(String rank) {this.rank = rank;}
+    public String getRank() {
+        return rank;
+    }
 
-    public String getRating() {return rating;}
-    public void setRating(String rating) {this.rating = rating;}
+    public void setRank(String rank) {
+        this.rank = rank;
+    }
 
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
+    public String getRating() {
+        return rating;
+    }
+
+    public void setRating(String rating) {
+        this.rating = rating;
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
 
     public String getDescripcion() {
         return descripcion;
@@ -62,8 +87,13 @@ public class Movie implements Parcelable {
         this.descripcion = descripcion;
     }
 
-    public String getFecha() { return fecha; }
-    public void setFecha(String fecha) { this.fecha = fecha; }
+    public String getFecha() {
+        return fecha;
+    }
+
+    public void setFecha(String fecha) {
+        this.fecha = fecha;
+    }
 
     public boolean isCargada() {
         return cargada;

@@ -5,30 +5,28 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.util.Log;
 
-import com.google.android.gms.tasks.OnFailureListener;
-import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.QuerySnapshot;
 import com.pmdm.snchezgil_alejandroimdbapp.database.IMDbDatabaseHelper;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
+//Clase FavoritesSync que maneja la vinculación de la base de datos local con la base de datos en la nube.
 public class FavoritesSync {
 
-    private FirebaseFirestore firestore;
-    private IMDbDatabaseHelper database;
+    private final FirebaseFirestore firestore;
+    private final IMDbDatabaseHelper database;
     private FirebaseAuth mAuth;
 
     public FavoritesSync(FirebaseFirestore firestore, IMDbDatabaseHelper database) {
         this.firestore = firestore;
         this.database = database;
     }
-
+    //Método para subir favoritos a la nube, obtenemos los datos haciendo una consulta a la tabla de
+    //favoritos de la base de datos local donde sacamos los datos de las películas favoritas por id de usuario.
     public void subirFavoritosANube() {
         mAuth = FirebaseAuth.getInstance();
         FirebaseUser currentUser = mAuth.getCurrentUser();
@@ -94,7 +92,7 @@ public class FavoritesSync {
                     caratula = cursor.getString(colCaratula);
                 }
 
-                // Comprobar que los datos no están vacíos
+                // Comprobamos que los datos no están vacíos.
                 if (idPelicula.isEmpty() || titulo.isEmpty()) {
                     Log.w("FavoritesSync", "Película con datos incompletos, omitiendo...");
                     continue;
@@ -119,7 +117,7 @@ public class FavoritesSync {
                                 Log.d("FavoritesSync", "Película subida a la nube")
                         )
                         .addOnFailureListener(e ->
-                                Log.e("FavoritesSync", "Error al subir película" )
+                                Log.e("FavoritesSync", "Error al subir película")
                         );
 
             } while (cursor.moveToNext());
@@ -131,13 +129,6 @@ public class FavoritesSync {
             cursor.close();
         }
         db.close();
-    }
-
-
-
-    public interface CloudSyncCallback {
-        void onSuccess();
-        void onFailure(Exception e);
     }
 
     public void descargarFavoritosNubeALocal(final FavoritesSync.CloudSyncCallback callback) {
@@ -191,19 +182,25 @@ public class FavoritesSync {
                     callback.onFailure(e);
                 });
     }
-
-
+    //Método para eliminar los favoritos de la nube.
     public void eliminarFavoritoDeNube(String idUsuario, String idPelicula) {
         if (idUsuario == null || idPelicula == null || idUsuario.isEmpty() || idPelicula.isEmpty()) {
             Log.e("FavoritesSync", "No se puede eliminar: idUsuario o idPelicula inválidos.");
             return;
         }
-
+        //Obtenemos el id de usuario y el id de la película y borramos el documento que tenga el id con las dos.
         firestore.collection("pelis")
                 .document(idUsuario + "_" + idPelicula)
                 .delete()
                 .addOnSuccessListener(aVoid -> Log.d("FavoritesSync", "Película eliminada de la nube: " + idPelicula))
                 .addOnFailureListener(e -> Log.e("FavoritesSync", "Error al eliminar película de la nube: " + idPelicula, e));
+    }
+
+    //Métodos de callback como en UsersSync.
+    public interface CloudSyncCallback {
+        void onSuccess();
+
+        void onFailure(Exception e);
     }
 
 

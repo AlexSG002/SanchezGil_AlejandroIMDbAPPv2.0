@@ -12,7 +12,6 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
-
 import androidx.recyclerview.widget.GridLayoutManager;
 
 import com.google.firebase.auth.FirebaseAuth;
@@ -42,19 +41,17 @@ import java.util.concurrent.Executors;
 
 
 public class HomeFragment extends Fragment {
-
-    //Declaramos las variables que necesitamos.
-    private FragmentHomeBinding binding;
-    private ExecutorService executorService;
-    private Handler mainHandler;
-    //Obtenemos el id de usuario al que se lo pasaremos al MovieAdapter para identificar al usuario al añadir sus favoritos.
     private static final String BASE_URL = "https://imdb-com.p.rapidapi.com/";
     private static final String HOST = "imdb-com.p.rapidapi.com";
     private static final String ENDPOINT_TOP10 = "title/get-top-meter?topMeterTitlesType=ALL&limit=10";
     private static final String ENDPOINT_DESCRIPCION = "title/get-overview?tconst=";
     private static List<Movie> peliculasCargadas = new ArrayList<>();
+    //Declaramos las variables que necesitamos.
+    private FragmentHomeBinding binding;
+    private ExecutorService executorService;
+    private Handler mainHandler;
     private IMDbDatabaseHelper database;
-    private boolean favoritos = false;
+    private final boolean favoritos = false;
     private RapidApiKeyManager apiKeyManager;
 
     //Al crearse la vista cargamos las películas.
@@ -73,6 +70,7 @@ public class HomeFragment extends Fragment {
 
         GridLayoutManager layoutManager = new GridLayoutManager(getContext(), 2);
         binding.recyclerView.setLayoutManager(layoutManager);
+        //Declaramos una nueva instancia del KeyManager.
         apiKeyManager = new RapidApiKeyManager();
         FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
         if (currentUser != null) {
@@ -85,16 +83,18 @@ public class HomeFragment extends Fragment {
 
         return root;
     }
+
     //Método para cargar las descripciones de las películas que se ejecuta cuando se cargan las películas.
-    private void cargarDescripciones(){
+    private void cargarDescripciones() {
         //Con un executor
-        executorService.execute(() ->{
+        executorService.execute(() -> {
             //Por cada película cargada
-            for(Movie movie : peliculasCargadas) {
+            for (Movie movie : peliculasCargadas) {
                 //Hacemos la llamada a la api con el endpoint y el id de la película, para obtener su descripción y rating.
                 try {
+                    //Obtenemos la key actual.
                     String apiKey = apiKeyManager.getCurrentKey();
-                    String urlString = BASE_URL + ENDPOINT_DESCRIPCION+movie.getId();
+                    String urlString = BASE_URL + ENDPOINT_DESCRIPCION + movie.getId();
                     //Utilizando HttpURL nos conectamos y establecemos el método "GET" para obtener los datos
                     //Establecemos como propiedades la api y el host.
                     URL url = new URL(urlString);
@@ -139,10 +139,10 @@ public class HomeFragment extends Fragment {
                             for (Movie m1 : peliculasDescripcion) {
                                 //Compruebo que tengan el mismo id para añadir a la lista de películas cargadas la descripción y el rating.
                                 if (m.getId().equals(m1.getId())) {
-                                   m.setDescripcion(m1.getDescripcion());
-                                   m.setRating(m1.getRating());
-                                   //Establezco la película como cargada para que el usuario pueda ver los detalles y añadirla a favoritos.
-                                   m.setCargada(true);
+                                    m.setDescripcion(m1.getDescripcion());
+                                    m.setRating(m1.getRating());
+                                    //Establezco la película como cargada para que el usuario pueda ver los detalles y añadirla a favoritos.
+                                    m.setCargada(true);
                                 }
                             }
                         }
@@ -163,9 +163,10 @@ public class HomeFragment extends Fragment {
     private void cargarTopMovies(String idUsuario) {
         executorService.execute(() -> {
             boolean intentoExitoso = false;
-
+            //Declarmaos un bucle para manejar el cambio de keys.
             while (!intentoExitoso) {
                 try {
+                    //Obtenemos la key actual.
                     String apiKey = apiKeyManager.getCurrentKey();
                     String urlString = BASE_URL + ENDPOINT_TOP10;
                     URL url = new URL(urlString);
@@ -219,8 +220,9 @@ public class HomeFragment extends Fragment {
                                 Toast.makeText(getContext(), "No se pudieron obtener las películas", Toast.LENGTH_SHORT).show();
                             }
                         });
-
+                        //Si cargó establecemos el intentoExitoso como verdadero, lo que finaliza el bucle de cambio de Keys.
                         intentoExitoso = true;
+                        //En caso de que el codigo de respuesta sea el 429 significa que se nos acabaron las solicitudes de esa key, cambiamos.
                     } else if (codRespuesta == 429) {
                         Log.e("HomeFragment", "Límite alcanzado. Cambiando clave...");
                         apiKeyManager.switchToNextKey();
@@ -245,7 +247,7 @@ public class HomeFragment extends Fragment {
         BufferedReader reader = new BufferedReader(new InputStreamReader(is));
         StringBuilder sb = new StringBuilder();
         String line;
-        while((line = reader.readLine()) != null) {
+        while ((line = reader.readLine()) != null) {
             sb.append(line);
         }
         return sb.toString();
