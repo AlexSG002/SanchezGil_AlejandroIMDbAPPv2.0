@@ -147,23 +147,38 @@ public class UsersSync {
                             //Un array de strings, los obtenemos para guardar el último log en la base de datos local.
                             Object loginRegistroObj = document.get("loginRegistro");
                             String loginRegistro = "";
-                            if (loginRegistroObj instanceof String) {
-                                loginRegistro = (String) loginRegistroObj;
-                            } else if (loginRegistroObj instanceof List) {
-                                List<?> loginList = (List<?>) loginRegistroObj;
-                                if (!loginList.isEmpty()) {
-                                    loginRegistro = loginList.get(loginList.size() - 1).toString();
+                            if (loginRegistroObj != null) {
+                                //Comprobamos si hay solo una entrada de log si es un String o si es una lista.
+                                if (loginRegistroObj instanceof String) {
+                                    loginRegistro = (String) loginRegistroObj;
+                                } else if (loginRegistroObj instanceof List) {
+                                    List<?> loginList = (List<?>) loginRegistroObj;
+                                    if (!loginList.isEmpty()) {
+                                        Object lastLogin = loginList.get(loginList.size() - 1);
+                                        if (lastLogin != null) {
+                                            loginRegistro = lastLogin.toString();
+                                        } else {
+                                            Log.w("UsersSync", "Usuario recién creado, generando login: " + idUsuario);
+                                        }
+                                    }
                                 }
                             }
 
                             Object logoutRegistroObj = document.get("logoutRegistro");
                             String logoutRegistro = "";
-                            if (logoutRegistroObj instanceof String) {
-                                logoutRegistro = (String) logoutRegistroObj;
-                            } else if (logoutRegistroObj instanceof List) {
-                                List<?> logoutList = (List<?>) logoutRegistroObj;
-                                if (!logoutList.isEmpty()) {
-                                    logoutRegistro = logoutList.get(logoutList.size() - 1).toString();
+                            if (logoutRegistroObj != null) {
+                                if (logoutRegistroObj instanceof String) {
+                                    logoutRegistro = (String) logoutRegistroObj;
+                                } else if (logoutRegistroObj instanceof List) {
+                                    List<?> logoutList = (List<?>) logoutRegistroObj;
+                                    if (!logoutList.isEmpty()) {
+                                        Object lastLogout = logoutList.get(logoutList.size() - 1);
+                                        if (lastLogout != null) {
+                                            logoutRegistro = lastLogout.toString();
+                                        } else {
+                                            Log.w("UsersSync", "Usuario recién creado, sin logouts: " + idUsuario);
+                                        }
+                                    }
                                 }
                             }
                             String direccion = document.getString("direccion");
@@ -180,6 +195,8 @@ public class UsersSync {
                             if (direccion == null) direccion = "Sin dirección";
                             if (telefono == null) telefono = "Sin teléfono";
                             if (foto == null) foto = "";
+                            if(loginRegistro == null) loginRegistro = "";
+                            if(logoutRegistro == null) logoutRegistro ="";
 
                             //Insertamos en la base local.
                             Cursor cursor = db.rawQuery("SELECT idUsuario FROM " + IMDbDatabaseHelper.TABLE_USUARIOS + " WHERE idUsuario = ?", new String[]{idUsuario});
