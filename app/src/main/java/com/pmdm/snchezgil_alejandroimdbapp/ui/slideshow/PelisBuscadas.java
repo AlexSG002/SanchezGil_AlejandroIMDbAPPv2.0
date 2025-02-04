@@ -30,14 +30,15 @@ public class PelisBuscadas extends Fragment {
     private ExecutorService executorService;
     private Handler mainHandler;
     private String idUsuario;
-    private List<Movie> pelis = new ArrayList<>();
-    private boolean favoritos = false;
+    private final List<Movie> pelis = new ArrayList<>();
+    private final boolean favoritos = false;
     private IMDbDatabaseHelper database;
     private MovieAdapter adapter;
 
     public PelisBuscadas() {
 
     }
+
     //Obtenemos la lista de pelis filtradas como argumento y la pasamos como parcelable para añadirla a favoritos.
     public static PelisBuscadas newInstance(ArrayList<Movie> pelisFiltradas) {
         PelisBuscadas fragment = new PelisBuscadas();
@@ -52,14 +53,14 @@ public class PelisBuscadas extends Fragment {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         //Obtenemos la instancia del usuario.
-            idUsuario = FirebaseAuth.getInstance().getCurrentUser().getUid();
-            //Si los argumentos obtenidos de la listas de pelíoculas no es nulo establecemos el parcelable de películas.
-            if(getArguments()!=null){
-                ArrayList<Movie> peliculasArrayList = getArguments().getParcelableArrayList("peliculas");
-                if(peliculasArrayList != null){
-                    //Y añadimos todas las películas al array list para cargarlas.
-                    pelis.addAll(peliculasArrayList);
-                }
+        idUsuario = FirebaseAuth.getInstance().getCurrentUser().getUid();
+        //Si los argumentos obtenidos de la listas de pelíoculas no es nulo establecemos el parcelable de películas.
+        if (getArguments() != null) {
+            ArrayList<Movie> peliculasArrayList = getArguments().getParcelableArrayList("peliculas");
+            if (peliculasArrayList != null) {
+                //Y añadimos todas las películas al array list para cargarlas.
+                pelis.addAll(peliculasArrayList);
+            }
         }
 
     }
@@ -85,14 +86,13 @@ public class PelisBuscadas extends Fragment {
     //Método para inicializar el adapter.
     private void configurarRecyclerView() {
         binding.recyclerViewBuscar.setLayoutManager(new LinearLayoutManager(requireContext()));
-        if(pelis!=null && !pelis.isEmpty()) {
+        if (pelis != null && !pelis.isEmpty()) {
             adapter = new MovieAdapter(requireContext(), pelis, idUsuario, database, favoritos);
             binding.recyclerViewBuscar.setAdapter(adapter);
-        }else {
+        } else {
             Toast.makeText(getContext(), "No se pudieron obtener las películas", Toast.LENGTH_SHORT).show();
         }
     }
-
 
 
     @Override

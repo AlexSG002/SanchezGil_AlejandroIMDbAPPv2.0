@@ -15,10 +15,12 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.firebase.firestore.FirebaseFirestore;
 import com.pmdm.snchezgil_alejandroimdbapp.MovieDetailsActivity;
 import com.pmdm.snchezgil_alejandroimdbapp.R;
 import com.pmdm.snchezgil_alejandroimdbapp.database.IMDbDatabaseHelper;
 import com.pmdm.snchezgil_alejandroimdbapp.models.Movie;
+import com.pmdm.snchezgil_alejandroimdbapp.sync.FavoritesSync;
 
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -27,35 +29,37 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class MovieAdapter extends RecyclerView.Adapter<MovieAdapter.ViewHolder>{
+public class MovieAdapter extends RecyclerView.Adapter<MovieAdapter.ViewHolder> {
     //Declaramos las variables necesarias.
-    private Context context;
-    private List<Movie> movies;
-    private ExecutorService executorService = Executors.newSingleThreadExecutor();
-    private Handler mainHandler = new Handler();
-    private String idUsuario;
-    private IMDbDatabaseHelper databaseHelper;
-    private boolean favoritos;
+    private final Context context;
+    private final List<Movie> movies;
+    private final ExecutorService executorService = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler();
+    private final String idUsuario;
+    private final IMDbDatabaseHelper databaseHelper;
+    private final boolean favoritos;
+    private final FavoritesSync favSync;
 
-    public MovieAdapter(Context context, List<Movie> movies, String idUsuario, IMDbDatabaseHelper databaseHelper, boolean favoritos){
+    public MovieAdapter(Context context, List<Movie> movies, String idUsuario, IMDbDatabaseHelper databaseHelper, boolean favoritos) {
         this.context = context;
         this.movies = movies;
         this.idUsuario = idUsuario;
         this.databaseHelper = databaseHelper;
         this.favoritos = favoritos;
-
+        //Inicializo una nueva instancia de FavoritesSync para la actualización de la base de datos en la nube.
+        favSync = new FavoritesSync(FirebaseFirestore.getInstance(), databaseHelper);
     }
 
 
     @NonNull
     @Override
-    public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType){
+    public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         View view = LayoutInflater.from(context).inflate(R.layout.item_movie, parent, false);
         return new ViewHolder(view);
     }
 
     @Override
-    public void onBindViewHolder(@NonNull ViewHolder holder, int position){
+    public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         //Declaramos una instancia de película y la inicializamos a la posición obtenida de la lista de películas que nos pasan como argumento.
         Movie movie = movies.get(position);
         //Por cada película de la lista recibida cargamos la imagen.
@@ -76,11 +80,11 @@ public class MovieAdapter extends RecyclerView.Adapter<MovieAdapter.ViewHolder>{
         //Obtenemos del ViewHolder el item, es decir el objeto película que aparece en la lista del recycler view.
         //Le damos un onClickListener para que abra los detalles de la película con un intent.
         holder.itemView.setOnClickListener(v -> {
-            if(movie.isCargada()) {
+            if (movie.isCargada()) {
                 Intent intent = new Intent(context, MovieDetailsActivity.class);
                 intent.putExtra("MOVIE", movie);
                 context.startActivity(intent);
-            }else{
+            } else {
                 Toast.makeText(context, "Cargando datos, por favor espera...", Toast.LENGTH_SHORT).show();
             }
         });
@@ -89,11 +93,11 @@ public class MovieAdapter extends RecyclerView.Adapter<MovieAdapter.ViewHolder>{
             executorService.execute(() -> {
                 //Si no estamos en favoritos y los detalles de la película han cargado la agregamos a favoritos.
                 if (!favoritos) {
-                    if(movie.isCargada()) {
+                    if (movie.isCargada()) {
                         agregarFavorito(movie, holder.getAdapterPosition());
-                    }else{
+                    } else {
                         mainHandler.post(() ->
-                        Toast.makeText(context, "Cargando datos, por favor espera... ",Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Cargando datos, por favor espera... ", Toast.LENGTH_SHORT).show()
                         );
                     }
                     //Si no estamos en favoritos la borramos.
@@ -105,30 +109,25 @@ public class MovieAdapter extends RecyclerView.Adapter<MovieAdapter.ViewHolder>{
             return true;
         });
     }
+
     //Método que sirve para mostrar en pantalla un número determinado de objetos en este caso de tipo movie.
     //Por lo que depende del tamaño de la lista de películas y en caso de ser nulo pues es 0.
     @Override
-    public int getItemCount(){
+    public int getItemCount() {
         if (movies != null) {
             return movies.size();
         } else {
             return 0;
         }
     }
-    //Muestra el ViewHolder con el elemento que queremos que muestre que son las caratulas en el RecyclerView
-    static class ViewHolder extends RecyclerView.ViewHolder {
-        ImageView posterImageView;
-        public ViewHolder(@NonNull View itemView){
-            super(itemView);
-            posterImageView = itemView.findViewById(R.id.posterImageView);
-        }
-    }
+
     //Método para agregar los favoritos utilizando la base de datos, lo insertamos con el método de la clase de la base de datos.
     private void agregarFavorito(Movie movie, int position) {
         SQLiteDatabase dbWrite = databaseHelper.getWritableDatabase();
-        long result = databaseHelper.insertarFavorito(dbWrite, idUsuario, movie.getId(), movie.getTitle(), movie.getDescripcion(), movie.getFecha(), movie.getRank(),movie.getRating() , movie.getImageUrl());
+        long result = databaseHelper.insertarFavorito(dbWrite, idUsuario, movie.getId(), movie.getTitle(), movie.getDescripcion(), movie.getFecha(), movie.getRank(), movie.getRating(), movie.getImageUrl());
         dbWrite.close();
-
+        //Cada vez que se agrege un favorito lo actualizamos en la nube.
+        favSync.subirFavoritosANube();
         if (result != -1) {
             mainHandler.post(() ->
                     Toast.makeText(context, "Se ha agregado a favoritos: " + movie.getTitle(), Toast.LENGTH_SHORT).show()
@@ -139,6 +138,7 @@ public class MovieAdapter extends RecyclerView.Adapter<MovieAdapter.ViewHolder>{
             );
         }
     }
+
     //Método para eliminar favoritos, le hacemos una consulta a la base de datos y borramos la película cuyo usuario e id de película corresponda.
     private void eliminarFavorito(Movie movie, int position) {
         SQLiteDatabase dbWrite = databaseHelper.getWritableDatabase();
@@ -148,8 +148,10 @@ public class MovieAdapter extends RecyclerView.Adapter<MovieAdapter.ViewHolder>{
                 new String[]{idUsuario, movie.getId()}
         );
         dbWrite.close();
-
         if (rowsDeleted > 0) {
+            //Cada vez que se elimina un favorito lo borramos de la nube.
+            favSync.eliminarFavoritoDeNube(idUsuario, movie.getId());
+
             mainHandler.post(() -> {
                 Toast.makeText(context, "Eliminado de favoritos: " + movie.getTitle(), Toast.LENGTH_SHORT).show();
                 movies.remove(position);
@@ -159,6 +161,16 @@ public class MovieAdapter extends RecyclerView.Adapter<MovieAdapter.ViewHolder>{
             mainHandler.post(() ->
                     Toast.makeText(context, "Error al eliminar: " + movie.getTitle(), Toast.LENGTH_SHORT).show()
             );
+        }
+    }
+
+    //Muestra el ViewHolder con el elemento que queremos que muestre que son las caratulas en el RecyclerView
+    static class ViewHolder extends RecyclerView.ViewHolder {
+        ImageView posterImageView;
+
+        public ViewHolder(@NonNull View itemView) {
+            super(itemView);
+            posterImageView = itemView.findViewById(R.id.posterImageView);
         }
     }
 }

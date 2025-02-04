@@ -27,6 +27,7 @@ import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.GridLayoutManager;
 
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.pmdm.snchezgil_alejandroimdbapp.adapter.MovieAdapter;
 import com.pmdm.snchezgil_alejandroimdbapp.database.IMDbDatabaseHelper;
@@ -38,20 +39,18 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import com.google.gson.Gson;
-
 public class FavoritosFragment extends Fragment {
+    private static final int CODIGO_PERMISOS_BLUETOOTH = 1;
     //Declaramos variables
     private FragmentFavoritosBinding binding;
     private ExecutorService executorService;
     private Handler mainHandler;
-
-    private boolean favoritos = true;
-    private String idUsuario = FirebaseAuth.getInstance().getCurrentUser().getUid();
+    private final boolean favoritos = true;
+    private final String idUsuario = FirebaseAuth.getInstance().getCurrentUser().getUid();
     private Button buttonCompartir;
-    private static final int CODIGO_PERMISOS_BLUETOOTH = 1;
-    private List<Movie> pelisFavoritas = new ArrayList<>();
+    private final List<Movie> pelisFavoritas = new ArrayList<>();
     private IMDbDatabaseHelper database;
+
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater,
                              ViewGroup container, Bundle savedInstanceState) {
@@ -79,6 +78,7 @@ public class FavoritosFragment extends Fragment {
 
         return root;
     }
+
     //Método para cargar las peliculas en favoritos desde la base de datos.
     private void cargarFavoritosDesdeBD() {
         executorService.execute(() -> {
@@ -127,7 +127,7 @@ public class FavoritosFragment extends Fragment {
             }
             //Cerramos la base de datos.
             db.close();
-        //En el hilo principal con mainHandler inicializamos una nueva instancia del MovieAdapter
+            //En el hilo principal con mainHandler inicializamos una nueva instancia del MovieAdapter
             mainHandler.post(() -> {
                 if (!pelisFavoritas.isEmpty()) {
                     MovieAdapter adapter = new MovieAdapter(getContext(), pelisFavoritas, idUsuario, database, favoritos);
@@ -145,6 +145,7 @@ public class FavoritosFragment extends Fragment {
         executorService.shutdown();
         binding = null;
     }
+
     //Método para solicitar los permisos de bluetooth, ya que dependiendo de la api es diferente,
     //Comprueba la api en la que estamos para solicitar unos permisos u otros.
     private void solicitarPermisosBluetooth() {
@@ -190,6 +191,7 @@ public class FavoritosFragment extends Fragment {
             }
         }
     }
+
     //Método para activar el bluetooth utilizando bluetooth adapter en caso de tener el bluetooth desactivado.
     private void activarBluetoothYCompartir() {
         BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
@@ -206,10 +208,11 @@ public class FavoritosFragment extends Fragment {
             compartirFavoritos();
         }
     }
+
     //Método para convertir las favoritas a un texto json y mostrarlo en un AlertDialog al usuario.
     private void compartirFavoritos() {
-        if(pelisFavoritas.isEmpty()){
-            Toast.makeText(getContext(), "No hay peliculas guardadas en favoritos para compartir.",Toast.LENGTH_SHORT).show();
+        if (pelisFavoritas.isEmpty()) {
+            Toast.makeText(getContext(), "No hay peliculas guardadas en favoritos para compartir.", Toast.LENGTH_SHORT).show();
         }
 
         Gson gson = new GsonBuilder().setPrettyPrinting().create();

@@ -13,6 +13,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.MediaStore;
+import android.util.Base64;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -28,6 +29,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 
+import com.google.firebase.firestore.FirebaseFirestore;
 import com.hbb20.CountryCodePicker;
 import com.pmdm.snchezgil_alejandroimdbapp.database.IMDbDatabaseHelper;
 
@@ -37,15 +39,17 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
-import android.util.Base64;
 
 public class EditUserActivity extends AppCompatActivity {
-
+    //Declaramos e inicializamos variables.
     private ActivityResultLauncher<Intent> camaraLauncher;
     private ActivityResultLauncher<Intent> galeriaLauncher;
     private ActivityResultLauncher<String[]> obtenerPermisosLauncher;
@@ -55,24 +59,26 @@ public class EditUserActivity extends AppCompatActivity {
     private ImageView imagen;
     private String nuevoNombre;
     private CountryCodePicker ccp;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_edit_user);
-
+        //Declaramos las variables de los elementos graficos para obtener o establecer datos.
         EditText editTextNombre = findViewById(R.id.editTextNombre);
         EditText editTextTelefono = findViewById(R.id.editTextTlf);
         EditText editTextEmail = findViewById(R.id.editTextEmailEditar);
         EditText editTextDireccion = findViewById(R.id.editTextDir);
         EditText editTextURL = findViewById(R.id.editTextURL);
+        //Inicializamos la variable de CountryCodePicker también al elemento gráfico del layout.
         ccp = findViewById(R.id.countryCodePicker);
 
 
         imagen = findViewById(R.id.imageView3);
-
+        //Configuramos los ActivityResultLaunchers que se encargan de obtener los permisos.
         configurarActivityResultLaunchers();
 
-
+        //Obtenemos los datos del intent.
         if (getIntent().hasExtra("nombre")) {
             editTextNombre.setText(getIntent().getStringExtra("nombre"));
         }
@@ -89,12 +95,14 @@ public class EditUserActivity extends AppCompatActivity {
         if (getIntent().hasExtra("imagenUri")) {
             String fotoPath = getIntent().getStringExtra("imagenUri");
             if (fotoPath != null && !fotoPath.isEmpty()) {
-                ImageView imagen = findViewById(R.id.imageView3);
                 Uri uri = Uri.fromFile(new File(fotoPath));
-                imagen.setImageURI(uri);
+                //Decodificamos la imagen para establecerla en el imageView y la escalamos por si es muy grande.
+                Bitmap bitmap = decodificarBitMap(fotoPath, 300, 300);
+                imagen.setImageBitmap(bitmap);
             }
         }
 
+        //Launcher para obtener los permisos de localización.
         obtenerPermisosLocalizacionLauncher = registerForActivityResult(
                 new ActivityResultContracts.RequestMultiplePermissions(),
                 result -> {
@@ -107,7 +115,7 @@ public class EditUserActivity extends AppCompatActivity {
                         Toast.makeText(this, "Permiso de ubicación denegado", Toast.LENGTH_SHORT).show();
                     }
                 });
-
+        //Launcher para obtener a direccion de la actividad EditAddress.
         direccionLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
@@ -116,12 +124,12 @@ public class EditUserActivity extends AppCompatActivity {
                         editTextDireccion.setText(direccion);
                     }
                 });
-
+        //Declaramos los botones.
         Button buttonImagen = findViewById(R.id.buttonImagen);
         Button buttonGuardar = findViewById(R.id.buttonGuardar);
         Button buttonDir = findViewById(R.id.buttonDireccion);
         Button buttonImagenURL = findViewById(R.id.buttonImagen2);
-
+        //Al pulsar el botón de imagen URL obtiene la imagen de la url introducida en el campo de texto.
         buttonImagenURL.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -134,7 +142,7 @@ public class EditUserActivity extends AppCompatActivity {
                             Toast.LENGTH_SHORT).show();
                     return;
                 }
-
+                //Descargamos la imagen con un Hilo ya que es una tarea Asíncrona.
                 new Thread(() -> {
                     try {
                         URL url = new URL(urlString);
@@ -143,6 +151,7 @@ public class EditUserActivity extends AppCompatActivity {
                         connection.connect();
                         InputStream input = connection.getInputStream();
                         Bitmap bitmap = BitmapFactory.decodeStream(input);
+                        //Escalamos la imagen.
                         Bitmap scaledBitmap = Bitmap.createScaledBitmap(bitmap, 300, 300, true);
                         String localPath = guardarBitMapLocalmente(scaledBitmap);
                         imageUri = Uri.fromFile(new File(localPath));
@@ -163,7 +172,7 @@ public class EditUserActivity extends AppCompatActivity {
                 }).start();
             }
         });
-
+        //Botón que nos envía a la EditAddressActivity pero solicitando primero los permisos de ubicación.
         buttonDir.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -174,17 +183,18 @@ public class EditUserActivity extends AppCompatActivity {
                 }
             }
         });
-
+        //Botón que abre el método para seleccionar imagen.
         buttonImagen.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 seleccionarImagen();
             }
         });
-
+        //Botón para guardar los datos.
         buttonGuardar.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                //Obtenemos los datos de los campos y revisamos diferentes excepciones.
                 String telefono = String.valueOf(editTextTelefono.getText());
                 String prefijo = ccp.getSelectedCountryCodeWithPlus();
                 String telefonoCompleto = prefijo + telefono;
@@ -198,28 +208,29 @@ public class EditUserActivity extends AppCompatActivity {
                     Toast.makeText(EditUserActivity.this, "Número de teléfono inválido.", Toast.LENGTH_SHORT).show();
                     return;
                 }
-
+                //Establecemos los datos en el intent.
                 Intent resultIntent = new Intent();
                 resultIntent.putExtra("nombreActualizado", nuevoNombre);
                 if (imageUri != null) {
                     resultIntent.putExtra("imagenActualizada", imageUri.toString());
                 }
                 setResult(RESULT_OK, resultIntent);
-
+                //Modificamos el usuario con el teléfono.
                 modificarUsuario(telefonoCompleto);
-                
+                //Cerramos la activity.
                 finish();
             }
         });
 
     }
-
+    //Método que comprueba si tenemos los permisos de ubicación concedidos.
     private boolean tienePermisosUbicacion() {
         return ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
                 ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
     }
-
+    //Método que solicita los permisos de ubicación.
     private void solicitarPermisosUbicacion() {
+        //Dependiendo de la versión solicitamos unos permisos u otros.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             obtenerPermisosLocalizacionLauncher.launch(new String[]{
                     Manifest.permission.ACCESS_FINE_LOCATION,
@@ -229,23 +240,23 @@ public class EditUserActivity extends AppCompatActivity {
             obtenerPermisosLocalizacionLauncher.launch(new String[]{Manifest.permission.ACCESS_FINE_LOCATION});
         }
     }
-
+    //Método que nos envía a editar dirección con el launcher para pasar los datos a través del intent.
     private void abrirEditarDireccion() {
         Intent intent = new Intent(EditUserActivity.this, EditAddressActivity.class);
         direccionLauncher.launch(intent);
     }
-
+    //Método que comprueba que el teléfono introducido es válido.
     private boolean telefonoValido(String telefonoCompleto) {
         if (telefonoCompleto == null || telefonoCompleto.trim().isEmpty()) {
             Log.d("EditUserActivity", "Teléfono vacío o nulo.");
             return false;
         }
-
+        //Con una expresión regular.
         boolean valido = telefonoCompleto.matches("^\\+[1-9]\\d{1,14}$") && telefonoCompleto.length() > ccp.getSelectedCountryCodeWithPlus().length();
         Log.d("EditUserActivity", "Teléfono: " + telefonoCompleto + " - Válido: " + valido);
         return valido;
     }
-
+    //Método para guardar como BitMap de manera local la imagen escogida por el usuario para establecer como foto de perfil.
     private String guardarBitMapLocalmente(Bitmap bitmap) throws IOException {
         String fileName = "user_image_" + System.currentTimeMillis() + ".jpg";
         File localFile = new File(getFilesDir(), fileName);
@@ -256,7 +267,7 @@ public class EditUserActivity extends AppCompatActivity {
         Log.d("EditUserActivity", "Imagen guardada localmente en: " + localFile.getAbsolutePath());
         return localFile.getAbsolutePath();
     }
-
+    //Si se trata de una uri también guardamos la imagen en el almacenamiento local.
     private String guardarImagenDeUriLocalmente(Uri uri) throws IOException {
         InputStream inputStream = getContentResolver().openInputStream(uri);
         if (inputStream == null) {
@@ -280,7 +291,37 @@ public class EditUserActivity extends AppCompatActivity {
         return localFile.getAbsolutePath();
     }
 
+    //Método para decodificar el BitMap.
+    private Bitmap decodificarBitMap(String filePath, int reqWidth, int reqHeight) {
+        // Primero, decodifica solo las dimensiones
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(filePath, options);
 
+        // Calcula el factor de escalado
+        options.inSampleSize = reescalado(options, reqWidth, reqHeight);
+
+        // Decodifica el bitmap ya escalado
+        options.inJustDecodeBounds = false;
+        return BitmapFactory.decodeFile(filePath, options);
+    }
+    //Método para reescalar las imágenes.
+    private int reescalado(BitmapFactory.Options options, int reqWidth, int reqHeight) {
+        final int height = options.outHeight;
+        final int width = options.outWidth;
+        int inSampleSize = 1;
+
+        if (height > reqHeight || width > reqWidth) {
+            final int halfHeight = height / 2;
+            final int halfWidth = width / 2;
+            while ((halfHeight / inSampleSize) >= reqHeight && (halfWidth / inSampleSize) >= reqWidth) {
+                inSampleSize *= 2;
+            }
+        }
+        return inSampleSize;
+    }
+
+    //Método que modifica al usuario en la base de datos local.
     private void modificarUsuario(String telefonoCompleto) {
         IMDbDatabaseHelper database = new IMDbDatabaseHelper(this);
         SQLiteDatabase db = database.getWritableDatabase();
@@ -290,11 +331,11 @@ public class EditUserActivity extends AppCompatActivity {
         ContentValues valores = new ContentValues();
         valores.put("nombre", nuevoNombre);
         try {
-            // Cifrado de teléfono y dirección
-            String encryptedTelefono = encriptar(telefonoCompleto);
-            String encryptedDireccion = encriptar(direccion);
-            valores.put("telefono", encryptedTelefono);
-            valores.put("direccion", encryptedDireccion);
+            //Ciframos teléfono y dirección.
+            String telefonoEncriptado = encriptar(telefonoCompleto);
+            String direccionEncriptada = encriptar(direccion);
+            valores.put("telefono", telefonoEncriptado);
+            valores.put("direccion", direccionEncriptada);
         } catch (Exception e) {
             Log.e("EditUserActivity", "Error cifrando datos: " + e.getMessage());
             // Si ocurre un error, se pueden almacenar sin cifrar o abortar la operación
@@ -319,32 +360,50 @@ public class EditUserActivity extends AppCompatActivity {
 
         if (filasActualizadas > 0) {
             Toast.makeText(this, "Datos actualizados correctamente", Toast.LENGTH_SHORT).show();
+            actualizarUsuariosNube(idUsuario, valores);
         } else {
             Toast.makeText(this, "Error al actualizar los datos", Toast.LENGTH_SHORT).show();
         }
 
         db.close();
     }
+    //Método para actualizar los usuarios en la nube.
+    private void actualizarUsuariosNube(String idUsuario, ContentValues valores) {
+        //Creamos un nuevo obeto HashMap y establecemos los valores que queremos.
+        Map<String, Object> data = new HashMap<>();
+        if (valores.containsKey("nombre")) {
+            data.put("nombre", valores.getAsString("nombre"));
+        }
+        if (valores.containsKey("telefono")) {
+            data.put("telefono", valores.getAsString("telefono"));
+        }
+        if (valores.containsKey("direccion")) {
+            data.put("direccion", valores.getAsString("direccion"));
+        }
+        if (valores.containsKey("foto")) {
+            data.put("foto", valores.getAsString("foto"));
+        }
 
+        //Guardamos la colección en Firestore.
+        FirebaseFirestore firestore = FirebaseFirestore.getInstance();
+        firestore.collection("usuarios").document(idUsuario)
+                .update(data)
+                .addOnSuccessListener(aVoid ->
+                        Log.d("Firestore", "Usuario " + idUsuario + " actualizado en la nube"))
+                .addOnFailureListener(e ->
+                        Log.e("Firestore", "Error actualizando usuario " + idUsuario, e));
+    }
+    //Método para encriptar en base 64.
     private String encriptar(String texto) throws Exception {
         String secret = "MyDifficultPassw";
-        SecretKeySpec secretKey = new SecretKeySpec(secret.getBytes("UTF-8"), "AES");
+        SecretKeySpec secretKey = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "AES");
         Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
         cipher.init(Cipher.ENCRYPT_MODE, secretKey);
-        byte[] encrypted = cipher.doFinal(texto.getBytes("UTF-8"));
+        byte[] encrypted = cipher.doFinal(texto.getBytes(StandardCharsets.UTF_8));
         return Base64.encodeToString(encrypted, Base64.DEFAULT);
     }
-
-    private String desencriptar(String texto) throws Exception {
-        String secret = "MyDifficultPassw";
-        SecretKeySpec secretKey = new SecretKeySpec(secret.getBytes("UTF-8"), "AES");
-        Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
-        cipher.init(Cipher.DECRYPT_MODE, secretKey);
-        byte[] decrypted = cipher.doFinal(Base64.decode(texto, Base64.DEFAULT));
-        return new String(decrypted, "UTF-8");
-    }
-
-
+    //Método para configurar los launchers de galería y cámara, que manejan la obtención de permisos y el flujo de
+    //la aplicación que abre una u otra función.
     private void configurarActivityResultLaunchers() {
         // Launcher para capturar imagen con la cámara
         camaraLauncher = registerForActivityResult(
@@ -353,11 +412,28 @@ public class EditUserActivity extends AppCompatActivity {
                     @Override
                     public void onActivityResult(ActivityResult result) {
                         if (result.getResultCode() == RESULT_OK) {
-                            imagen.setImageURI(imageUri);
+                            if (imageUri != null) {
+                                try {
+                                    InputStream inputStream = getContentResolver().openInputStream(imageUri);
+                                    if (inputStream != null) {
+                                        Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
+                                        Bitmap scaledBitmap = Bitmap.createScaledBitmap(bitmap, 300, 300, true);
+                                        imagen.setImageBitmap(scaledBitmap);
+                                    } else {
+                                        Toast.makeText(EditUserActivity.this, "No se pudo abrir la imagen.", Toast.LENGTH_SHORT).show();
+                                    }
+                                } catch (IOException e) {
+                                    e.printStackTrace();
+                                    Toast.makeText(EditUserActivity.this, "Error al acceder al archivo de la imagen.", Toast.LENGTH_SHORT).show();
+                                }
+                            } else {
+                                Toast.makeText(EditUserActivity.this, "Error: imageUri es nulo", Toast.LENGTH_SHORT).show();
+                            }
                         }
                     }
                 });
 
+        //Launcher de galería que obtiene la foto del resultado de la actividad.
         galeriaLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 new ActivityResultCallback<ActivityResult>() {
@@ -369,7 +445,7 @@ public class EditUserActivity extends AppCompatActivity {
                         }
                     }
                 });
-
+        //Launcher para obtener los permisos que comprueba la versión para solicitar unos u otros.
         obtenerPermisosLauncher = registerForActivityResult(
                 new ActivityResultContracts.RequestMultiplePermissions(),
                 result -> {
@@ -387,7 +463,7 @@ public class EditUserActivity extends AppCompatActivity {
                     }
                 });
     }
-
+    //Método que maneja el flujo de selección de imagen o solicitar permisos.
     private void seleccionarImagen() {
         if (comprobarPermisos()) {
             mostrarOpcionesImagen();
@@ -395,7 +471,7 @@ public class EditUserActivity extends AppCompatActivity {
             solicitarPermisos();
         }
     }
-
+    //Método que comprueba los permisos para el flujo de la app.
     private boolean comprobarPermisos() {
         boolean permisosCamara = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
         boolean permisosAlmacenamiento;
@@ -407,7 +483,7 @@ public class EditUserActivity extends AppCompatActivity {
 
         return permisosCamara && permisosAlmacenamiento;
     }
-
+    //Método para solicitar los permisos.
     private void solicitarPermisos() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             obtenerPermisosLauncher.launch(new String[]{
@@ -422,7 +498,8 @@ public class EditUserActivity extends AppCompatActivity {
             });
         }
     }
-
+    //Método que muestra en un AlertDialog si queremos sacar una foto usando la cámara para ponerla de foto de perfil
+    //O queremos una de la galería.
     private void mostrarOpcionesImagen() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Seleccionar Imagen")
@@ -439,19 +516,24 @@ public class EditUserActivity extends AppCompatActivity {
                 .setNegativeButton("Cancelar", null)
                 .show();
     }
-
+    //Método para abrir la cámara.
     private void abrirCamara() {
         Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
         if (intent.resolveActivity(getPackageManager()) != null) {
             try {
                 File fotoArchivo = crearArchivoImagen();
                 if (fotoArchivo != null) {
-                    imageUri = FileProvider.getUriForFile(this,
+                    Log.d("EditUserActivity", "Ruta de la imagen: " + fotoArchivo.getAbsolutePath());
+                    imageUri = FileProvider.getUriForFile(
+                            this,
                             getApplicationContext().getPackageName() + ".provider",
                             fotoArchivo);
                     intent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri);
                     camaraLauncher.launch(intent);
+                } else {
+                    Toast.makeText(this, "Error al crear el archivo de imagen.", Toast.LENGTH_SHORT).show();
                 }
+
             } catch (IOException e) {
                 e.printStackTrace();
                 Toast.makeText(this, "Error al crear el archivo de imagen.", Toast.LENGTH_SHORT).show();
@@ -460,7 +542,7 @@ public class EditUserActivity extends AppCompatActivity {
             Toast.makeText(this, "No hay una aplicación de cámara disponible.", Toast.LENGTH_SHORT).show();
         }
     }
-
+    //Método para crear el archivo de imágen de forma local.
     private File crearArchivoImagen() throws IOException {
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
         String nombreArchivo = "JPEG_" + timeStamp + "_";
@@ -470,7 +552,7 @@ public class EditUserActivity extends AppCompatActivity {
         }
         return File.createTempFile(nombreArchivo, ".jpg", storageDir);
     }
-
+    //Método para abrir la galería y seleccionar una imágen.
     private void abrirGaleria() {
         Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
         galeriaLauncher.launch(intent);
