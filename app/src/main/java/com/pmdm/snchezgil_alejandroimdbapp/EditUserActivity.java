@@ -96,7 +96,6 @@ public class EditUserActivity extends AppCompatActivity {
             String fotoPath = getIntent().getStringExtra("imagenUri");
             if (fotoPath != null && !fotoPath.isEmpty()) {
                 Uri uri = Uri.fromFile(new File(fotoPath));
-                //Decodificamos la imagen para establecerla en el imageView y la escalamos por si es muy grande.
                 Bitmap bitmap = decodificarBitMap(fotoPath, 300, 300);
                 imagen.setImageBitmap(bitmap);
             }
@@ -223,6 +222,7 @@ public class EditUserActivity extends AppCompatActivity {
         });
 
     }
+
     //Método que comprueba si tenemos los permisos de ubicación concedidos.
     private boolean tienePermisosUbicacion() {
         return ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
