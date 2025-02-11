@@ -110,8 +110,8 @@ public class FavoritesSync {
                 pelis.put("caratulaURL", caratula);
 
                 // Subir a Firestore
-                firestore.collection("pelis")
-                        .document(idUsuario + "_" + idPelicula)
+                firestore.collection("favoritas")
+                        .document(idUsuario).collection("peliculas").document(idPelicula)
                         .set(pelis)
                         .addOnSuccessListener(aVoid ->
                                 Log.d("FavoritesSync", "Película subida a la nube")

@@ -59,6 +59,7 @@ public class EditUserActivity extends AppCompatActivity {
     private ImageView imagen;
     private String nuevoNombre;
     private CountryCodePicker ccp;
+    private EditText editTextTelefono;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,7 +67,7 @@ public class EditUserActivity extends AppCompatActivity {
         setContentView(R.layout.activity_edit_user);
         //Declaramos las variables de los elementos graficos para obtener o establecer datos.
         EditText editTextNombre = findViewById(R.id.editTextNombre);
-        EditText editTextTelefono = findViewById(R.id.editTextTlf);
+        editTextTelefono = findViewById(R.id.editTextTlf);
         EditText editTextEmail = findViewById(R.id.editTextEmailEditar);
         EditText editTextDireccion = findViewById(R.id.editTextDir);
         EditText editTextURL = findViewById(R.id.editTextURL);
@@ -252,9 +253,14 @@ public class EditUserActivity extends AppCompatActivity {
             return false;
         }
         //Con una expresión regular.
-        boolean valido = telefonoCompleto.matches("^\\+[1-9]\\d{1,14}$") && telefonoCompleto.length() > ccp.getSelectedCountryCodeWithPlus().length();
-        Log.d("EditUserActivity", "Teléfono: " + telefonoCompleto + " - Válido: " + valido);
-        return valido;
+        ccp.registerCarrierNumberEditText(editTextTelefono);
+        if(ccp.isValidFullNumber()) {
+            Log.d("EditUserActivity", "Teléfono: " + telefonoCompleto);
+            return true;
+        }else{
+            Toast.makeText(EditUserActivity.this, "Teléfono inválido", Toast.LENGTH_SHORT).show();
+            return false;
+        }
     }
     //Método para guardar como BitMap de manera local la imagen escogida por el usuario para establecer como foto de perfil.
     private String guardarBitMapLocalmente(Bitmap bitmap) throws IOException {
@@ -519,7 +525,8 @@ public class EditUserActivity extends AppCompatActivity {
     //Método para abrir la cámara.
     private void abrirCamara() {
         Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        if (intent.resolveActivity(getPackageManager()) != null) {
+        if(getApplicationContext().getPackageManager().hasSystemFeature(
+                PackageManager.FEATURE_CAMERA)) {
             try {
                 File fotoArchivo = crearArchivoImagen();
                 if (fotoArchivo != null) {
