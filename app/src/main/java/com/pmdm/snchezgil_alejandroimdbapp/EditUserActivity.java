@@ -96,9 +96,42 @@ public class EditUserActivity extends AppCompatActivity {
         if (getIntent().hasExtra("imagenUri")) {
             String fotoPath = getIntent().getStringExtra("imagenUri");
             if (fotoPath != null && !fotoPath.isEmpty()) {
-                Uri uri = Uri.fromFile(new File(fotoPath));
-                Bitmap bitmap = decodificarBitMap(fotoPath, 300, 300);
-                imagen.setImageBitmap(bitmap);
+                //Si la imagen viene en formato http es porque viene de Google o Facebook, nos descargamos la imagen desde la uri y la ponemos en el imageView.
+                if(fotoPath.startsWith("http")){
+                    new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                URL url = new URL(fotoPath);
+                                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                                connection.setDoInput(true);
+                                connection.connect();
+                                InputStream input = connection.getInputStream();
+                                final Bitmap bitmap = BitmapFactory.decodeStream(input);
+                                Bitmap scaledBitmap = Bitmap.createScaledBitmap(bitmap, 300, 300, true);
+                                runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        imagen.setImageBitmap(scaledBitmap);
+                                    }
+                                });
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                                runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        Toast.makeText(EditUserActivity.this, "Error al descargar la imagen", Toast.LENGTH_SHORT).show();
+                                    }
+                                });
+                            }
+                        }
+                    }).start();
+                    //Si no viene de http es porque es un archivo local que con la uri podemos encontrar en el dispositivo y lo ponemos en el imageView.
+                }else {
+                    Uri uri = Uri.fromFile(new File(fotoPath));
+                    Bitmap bitmap = decodificarBitMap(fotoPath, 300, 300);
+                    imagen.setImageBitmap(bitmap);
+                }
             }
         }
 
@@ -252,7 +285,7 @@ public class EditUserActivity extends AppCompatActivity {
             Log.d("EditUserActivity", "Teléfono vacío o nulo.");
             return false;
         }
-        //Con una expresión regular.
+        //Con el método de validar teléfonos de country code picker.
         ccp.registerCarrierNumberEditText(editTextTelefono);
         if(ccp.isValidFullNumber()) {
             Log.d("EditUserActivity", "Teléfono: " + telefonoCompleto);
@@ -526,7 +559,7 @@ public class EditUserActivity extends AppCompatActivity {
     private void abrirCamara() {
         Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
         if(getApplicationContext().getPackageManager().hasSystemFeature(
-                PackageManager.FEATURE_CAMERA)) {
+                PackageManager.FEATURE_CAMERA_ANY)) {
             try {
                 File fotoArchivo = crearArchivoImagen();
                 if (fotoArchivo != null) {
