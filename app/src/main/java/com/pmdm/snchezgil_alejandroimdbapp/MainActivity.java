@@ -618,6 +618,7 @@ public class MainActivity extends AppCompatActivity {
             if (foto != null && !foto.isEmpty()) {
                 i.putExtra("imagenUri", foto);
             }
+
         }
         cursor.close();
 

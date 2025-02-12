@@ -59,6 +59,7 @@ public class EditUserActivity extends AppCompatActivity {
     private ImageView imagen;
     private String nuevoNombre;
     private CountryCodePicker ccp;
+    private EditText editTextTelefono;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,7 +67,7 @@ public class EditUserActivity extends AppCompatActivity {
         setContentView(R.layout.activity_edit_user);
         //Declaramos las variables de los elementos graficos para obtener o establecer datos.
         EditText editTextNombre = findViewById(R.id.editTextNombre);
-        EditText editTextTelefono = findViewById(R.id.editTextTlf);
+        editTextTelefono = findViewById(R.id.editTextTlf);
         EditText editTextEmail = findViewById(R.id.editTextEmailEditar);
         EditText editTextDireccion = findViewById(R.id.editTextDir);
         EditText editTextURL = findViewById(R.id.editTextURL);
@@ -95,9 +96,42 @@ public class EditUserActivity extends AppCompatActivity {
         if (getIntent().hasExtra("imagenUri")) {
             String fotoPath = getIntent().getStringExtra("imagenUri");
             if (fotoPath != null && !fotoPath.isEmpty()) {
-                Uri uri = Uri.fromFile(new File(fotoPath));
-                Bitmap bitmap = decodificarBitMap(fotoPath, 300, 300);
-                imagen.setImageBitmap(bitmap);
+                //Si la imagen viene en formato http es porque viene de Google o Facebook, nos descargamos la imagen desde la uri y la ponemos en el imageView.
+                if(fotoPath.startsWith("http")){
+                    new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                URL url = new URL(fotoPath);
+                                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                                connection.setDoInput(true);
+                                connection.connect();
+                                InputStream input = connection.getInputStream();
+                                final Bitmap bitmap = BitmapFactory.decodeStream(input);
+                                Bitmap scaledBitmap = Bitmap.createScaledBitmap(bitmap, 300, 300, true);
+                                runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        imagen.setImageBitmap(scaledBitmap);
+                                    }
+                                });
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                                runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        Toast.makeText(EditUserActivity.this, "Error al descargar la imagen", Toast.LENGTH_SHORT).show();
+                                    }
+                                });
+                            }
+                        }
+                    }).start();
+                    //Si no viene de http es porque es un archivo local que con la uri podemos encontrar en el dispositivo y lo ponemos en el imageView.
+                }else {
+                    Uri uri = Uri.fromFile(new File(fotoPath));
+                    Bitmap bitmap = decodificarBitMap(fotoPath, 300, 300);
+                    imagen.setImageBitmap(bitmap);
+                }
             }
         }
 
@@ -251,10 +285,15 @@ public class EditUserActivity extends AppCompatActivity {
             Log.d("EditUserActivity", "Teléfono vacío o nulo.");
             return false;
         }
-        //Con una expresión regular.
-        boolean valido = telefonoCompleto.matches("^\\+[1-9]\\d{1,14}$") && telefonoCompleto.length() > ccp.getSelectedCountryCodeWithPlus().length();
-        Log.d("EditUserActivity", "Teléfono: " + telefonoCompleto + " - Válido: " + valido);
-        return valido;
+        //Con el método de validar teléfonos de country code picker.
+        ccp.registerCarrierNumberEditText(editTextTelefono);
+        if(ccp.isValidFullNumber()) {
+            Log.d("EditUserActivity", "Teléfono: " + telefonoCompleto);
+            return true;
+        }else{
+            Toast.makeText(EditUserActivity.this, "Teléfono inválido", Toast.LENGTH_SHORT).show();
+            return false;
+        }
     }
     //Método para guardar como BitMap de manera local la imagen escogida por el usuario para establecer como foto de perfil.
     private String guardarBitMapLocalmente(Bitmap bitmap) throws IOException {
@@ -519,7 +558,8 @@ public class EditUserActivity extends AppCompatActivity {
     //Método para abrir la cámara.
     private void abrirCamara() {
         Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        if (intent.resolveActivity(getPackageManager()) != null) {
+        if(getApplicationContext().getPackageManager().hasSystemFeature(
+                PackageManager.FEATURE_CAMERA_ANY)) {
             try {
                 File fotoArchivo = crearArchivoImagen();
                 if (fotoArchivo != null) {

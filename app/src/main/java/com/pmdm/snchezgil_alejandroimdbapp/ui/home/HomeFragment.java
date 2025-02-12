@@ -125,7 +125,12 @@ public class HomeFragment extends Fragment {
                         //Obtenemos los datos.
                         String id = titleObject.get("id").getAsString();
                         String plotText = plotObject.getAsJsonObject("plotText").get("plainText").getAsString();
-                        String rating = ratingsObject.get("aggregateRating").getAsString();
+                        String rating = "Sin rating";
+
+                        if (ratingsObject.has("aggregateRating") && !ratingsObject.get("aggregateRating").isJsonNull()) {
+                            rating = ratingsObject.get("aggregateRating").getAsString();
+                        }
+
                         //Declaro e inicializo una nueva variable movieDesc para establecer los datos y añadirlas a un array de películas.
                         Movie movieDesc = new Movie();
                         movieDesc.setId(id);

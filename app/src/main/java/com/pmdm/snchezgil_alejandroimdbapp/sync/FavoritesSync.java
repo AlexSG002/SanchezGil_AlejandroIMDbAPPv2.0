@@ -110,8 +110,8 @@ public class FavoritesSync {
                 pelis.put("caratulaURL", caratula);
 
                 // Subir a Firestore
-                firestore.collection("pelis")
-                        .document(idUsuario + "_" + idPelicula)
+                firestore.collection("favoritas")
+                        .document(idUsuario).collection("peliculas").document(idPelicula)
                         .set(pelis)
                         .addOnSuccessListener(aVoid ->
                                 Log.d("FavoritesSync", "Película subida a la nube")
@@ -132,7 +132,14 @@ public class FavoritesSync {
     }
 
     public void descargarFavoritosNubeALocal(final FavoritesSync.CloudSyncCallback callback) {
-        firestore.collection("pelis")
+        mAuth = FirebaseAuth.getInstance();
+        FirebaseUser currentUser = mAuth.getCurrentUser();
+        if (currentUser == null) {
+            Log.e("FavoritesSync", "El usuario no está autenticado.");
+            return;
+        }
+        String idUsuarioConsulta = currentUser.getUid();
+        firestore.collection("favoritas").document(idUsuarioConsulta).collection("peliculas")
                 .get()
                 .addOnSuccessListener(queryDocumentSnapshots -> {
                     SQLiteDatabase db = database.getWritableDatabase();
@@ -189,8 +196,8 @@ public class FavoritesSync {
             return;
         }
         //Obtenemos el id de usuario y el id de la película y borramos el documento que tenga el id con las dos.
-        firestore.collection("pelis")
-                .document(idUsuario + "_" + idPelicula)
+        firestore.collection("favoritas")
+                .document(idUsuario).collection("peliculas").document(idPelicula)
                 .delete()
                 .addOnSuccessListener(aVoid -> Log.d("FavoritesSync", "Película eliminada de la nube: " + idPelicula))
                 .addOnFailureListener(e -> Log.e("FavoritesSync", "Error al eliminar película de la nube: " + idPelicula, e));

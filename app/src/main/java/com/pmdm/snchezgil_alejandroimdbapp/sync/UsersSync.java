@@ -193,7 +193,7 @@ public class UsersSync {
                             if (nombre == null) nombre = "Nombre desconocido";
                             if (email == null) email = "Correo no disponible";
                             if (direccion == null) direccion = "Sin dirección";
-                            if (telefono == null) telefono = "Sin teléfono";
+                            if (telefono == null) telefono = "";
                             if (foto == null) foto = "";
                             if(loginRegistro == null) loginRegistro = "";
                             if(logoutRegistro == null) logoutRegistro ="";
