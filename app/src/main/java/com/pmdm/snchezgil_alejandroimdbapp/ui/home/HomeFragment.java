@@ -124,7 +124,10 @@ public class HomeFragment extends Fragment {
 
                         //Obtenemos los datos.
                         String id = titleObject.get("id").getAsString();
-                        String plotText = plotObject.getAsJsonObject("plotText").get("plainText").getAsString();
+                        String plotText = "Sin descripción";
+                        if (plotObject.has("plot") && !ratingsObject.get("plot").isJsonNull()) {
+                            plotText = ratingsObject.get("plot").getAsString();
+                        }
                         String rating = "Sin rating";
 
                         if (ratingsObject.has("aggregateRating") && !ratingsObject.get("aggregateRating").isJsonNull()) {
@@ -203,6 +206,7 @@ public class HomeFragment extends Fragment {
                             String mes = nodeObject.getAsJsonObject("releaseDate").get("month").getAsString();
                             String dia = nodeObject.getAsJsonObject("releaseDate").get("day").getAsString();
                             String year = nodeObject.getAsJsonObject("releaseDate").get("year").getAsString();
+
 
                             Movie movie = new Movie();
                             movie.setImageUrl(imageUrl);
